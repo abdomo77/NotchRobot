@@ -20,14 +20,15 @@
 - **Claude Code in the notch.** See every running `claude` session (working, waiting, or done), and click one to jump to its terminal tab (Terminal and iTerm2).
 - **Approve or deny from the notch.** When Claude asks for permission to use a tool, you can **Allow**, **Deny**, or send it back to the terminal without leaving what you're doing. The card stays until you answer, even while Claude runs other tools or subagents.
 - **Answer Claude's questions.** Single-choice questions, multi-select questions, and several questions in a row (with Next / Back) all work from the notch.
-- **Account usage.** Your Claude plan's 5-hour and weekly usage, with when each one resets (Pro and Max plans).
+- **Account usage.** Your Claude plan's 5-hour and weekly usage, with when each one resets (Pro and Max plans). The notch warns you once when either limit reaches 90%, and tells you once when it's back.
 - **Task progress.** When Claude works through a task list, each session shows `2/4` and a progress bar, plus the task it's on now.
 - **Alerts.** A banner and a sound when Claude finishes, needs you, or hits an error, even over fullscreen apps.
-- **Now playing.** Shows the current song and artwork from Spotify, Apple Music, or YouTube, with the accent color taken from the artwork.
+- **Now playing.** Shows the current song and artwork from Spotify, Apple Music, or YouTube, with the accent color taken from the artwork. Drag the progress bar to seek.
 - **Clipboard history.** Keeps your last 20 copies.
 - **Shelf.** Drag files onto the notch to keep them handy.
 - **Timer, battery, clock, and date.**
 - **The robot.** His eyes follow your mouse, and he blinks, sleeps, and reacts to what Claude is doing.
+- **Swipe between tabs.** Swipe left or right with two fingers on the trackpad while the notch is open.
 - **English and Arabic.** It follows your Mac's language, and you can switch in Settings.
 - **Update check.** It tells you when a new version is out on GitHub.
 
