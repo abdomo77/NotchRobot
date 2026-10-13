@@ -10,7 +10,8 @@ cp hook.sh statusline.sh "$HOME/.notchrobot/"
 chmod +x "$HOME/.notchrobot/hook.sh" "$HOME/.notchrobot/statusline.sh"
 
 settings="$HOME/.claude/settings.json"
-[ -f "$settings" ] && cp "$settings" "$settings.bak-notchrobot"
+# النسخة الاحتياطي بتتاخد أول مرة بس، عشان تفضل الإعدادات اللي قبل NotchRobot
+[ -f "$settings" ] && [ ! -f "$settings.bak-notchrobot" ] && cp "$settings" "$settings.bak-notchrobot"
 
 # JXA موجود في كل ماك، فمش محتاجين python أو jq
 result=$(osascript -l JavaScript - "$settings" "$HOME/.notchrobot/hook.sh" "$HOME/.notchrobot/statusline.sh" <<'JS'

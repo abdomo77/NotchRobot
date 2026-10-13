@@ -7,6 +7,8 @@ mkdir -p "$d" 2>/dev/null
 tmp="$d/usage.json.$$"
 cat > "$tmp" 2>/dev/null || exit 0
 if ! grep -q '"rate_limits"' "$tmp" 2>/dev/null; then
+  # مفيش استهلاك (مش Pro/Max أو لسه مفيش رد): نطبع اسم الموديل بدل سطر فاضي
+  tr -d '\n' < "$tmp" | sed -n 's/.*"model" *: *{[^}]*"display_name" *: *"\([^"]*\)".*/\1/p'
   rm -f "$tmp"
   exit 0
 fi
