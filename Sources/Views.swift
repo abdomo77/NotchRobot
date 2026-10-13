@@ -446,7 +446,7 @@ struct ExpandedContent: View {
                 .id(m.tab)
                 .transition(tabTransition)
             }
-            .animation(.island, value: m.tab)
+            .animation(.spring(response: 0.3, dampingFraction: 0.95), value: m.tab)
             .clipped()
             .langDirection()
         }
@@ -458,13 +458,13 @@ struct ExpandedContent: View {
 
 /// زي الـ segmented control في iOS: كبسولة واحدة والمختار جواها أفتح
 extension ExpandedContent {
-    /// المحتوى بيدخل من ناحية التبويب الجديد. الترتيب ثابت شمال ليمين في اللغتين،
-    /// بس العمود معكوس في الإنجليزي فـ leading و trailing بيتبدلوا
+    /// المحتوى بيتزحلق شوية صغيرين من ناحية التبويب الجديد مع fade. الترتيب ثابت شمال ليمين
+    /// في اللغتين، بس العمود معكوس في الإنجليزي فالإزاحة بتتعكس معاه
     var tabTransition: AnyTransition {
-        let fromRight = m.tabForward
-        let edge: Edge = fromRight == (Lang.current == .ar) ? .trailing : .leading
-        return .asymmetric(insertion: .move(edge: edge).combined(with: .opacity),
-                           removal: .move(edge: edge == .leading ? .trailing : .leading).combined(with: .opacity))
+        let d: CGFloat = 14
+        let x = (m.tabForward == (Lang.current == .ar)) ? d : -d
+        return .asymmetric(insertion: .offset(x: x).combined(with: .opacity),
+                           removal: .offset(x: -x).combined(with: .opacity))
     }
 }
 
