@@ -51,6 +51,12 @@
   <img src="docs/2-permission-en.png" width="60%" alt="Approving a tool from the notch">
 </p>
 
+## Feature showcase
+
+<p align="center">
+  <img src="docs/1-showcase-rtl.png" width="100%" alt="NotchRobot feature showcase with Arabic captions, read right to left: collapsed notch, home, Claude sessions, permission approval, usage warning, music, clipboard history and file shelf">
+</p>
+
 ## Requirements
 
 - An Apple Silicon Mac for the downloadable release. A built-in notch is optional. Intel builds from source have not been verified.
