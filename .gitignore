@@ -1,0 +1,4 @@
+NotchRobot.app/
+*.dylib
+*.zip
+.DS_Store
