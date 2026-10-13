@@ -4,15 +4,26 @@
 
 # NotchRobot
 
+<p>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/abdomo77/NotchRobot?style=flat-square&labelColor=161b22&color=39d0d8" alt="MIT license"></a>
+  <a href="https://github.com/abdomo77/NotchRobot/releases/latest"><img src="https://img.shields.io/github/v/release/abdomo77/NotchRobot?style=flat-square&labelColor=161b22&color=39d0d8" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-13%2B-39d0d8?style=flat-square&labelColor=161b22" alt="macOS 13 or later">
+  <a href="https://github.com/abdomo77/NotchRobot/stargazers"><img src="https://img.shields.io/github/stars/abdomo77/NotchRobot?style=flat-square&labelColor=161b22&color=39d0d8" alt="GitHub stars"></a>
+</p>
+
 **A little robot that lives in your MacBook's notch — and keeps an eye on Claude Code for you.**
 
 [Download](https://github.com/abdomo77/NotchRobot/releases/latest) · [Build from source](#build-from-source) · [العربي](#بالعربي)
 
-<img src="docs/tab-home-v23.png" width="600" alt="NotchRobot home">
+<img src="docs/1-demo-en.gif" width="800" alt="A Claude Code permission card opens in the notch, is approved, and the session continues">
 
 </div>
 
 ---
+
+## Why NotchRobot?
+
+[Vibe Notch](https://github.com/farouqaldori/vibe-notch) also offers notch permission approvals and session monitoring. Choose NotchRobot for multi-step question cards answered in the notch, 5-hour and weekly plan usage with 90% and reset alerts, task progress, and Arabic RTL support alongside an English UI.
 
 ## Features
 
@@ -33,16 +44,16 @@
 - **Update check.** It tells you when a new version is out on GitHub.
 
 <p align="center">
-  <img src="docs/tab-claude-v23.png" width="49%" alt="Claude sessions with account usage and task progress">
-  <img src="docs/card-question-v23.png" width="49%" alt="Answering Claude's question from the notch">
+  <img src="docs/4-sessions-en.png" width="49%" alt="Claude sessions with account usage and task progress">
+  <img src="docs/3-question-en.png" width="49%" alt="Answering Claude's question from the notch">
 </p>
 <p align="center">
-  <img src="docs/card-permission-v23.png" width="60%" alt="Approving a tool from the notch">
+  <img src="docs/2-permission-en.png" width="60%" alt="Approving a tool from the notch">
 </p>
 
 ## Requirements
 
-- An Apple Silicon Mac. Any Mac works, but the notch looks best on one with a notch.
+- An Apple Silicon Mac for the downloadable release. A built-in notch is optional. Intel builds from source have not been verified.
 - macOS 13 Ventura or later.
 - [Claude Code](https://claude.com/claude-code), for the Claude features.
 
