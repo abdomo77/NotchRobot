@@ -71,6 +71,7 @@ struct PermissionAsk: Identifiable, Equatable {
     let hookPid: Int32
     var questions: [AskQuestion] = []   // مش فاضية = كلود بيسألك مش بيستأذن
     var input = Data()                  // الـ tool_input الأصلي، بنرجّعه ومعاه الإجابات
+    var key = ""                        // اسم الأداة + مدخلاتها، عشان نعرف نتيجتها لما توصل
 }
 
 final class ClaudeStore: ObservableObject {
@@ -173,10 +174,10 @@ final class ClaudeStore: ObservableObject {
             let before = dict.count
             dict = dict.filter { isAlive($0.value) }
             if dict.count != before { changed = true }
-            // الـ hook خلص (اتجاوب في التيرمنال، اتلغى، أو الوقت خلص)
-            let alive = asks.filter { kill($0.hookPid, 0) == 0 || errno != ESRCH }
-            if alive != asks { asks = alive }
         }
+        // الـ hook خلص (اتجاوب في التيرمنال، اتلغى، أو الوقت خلص): ده الدليل الأكيد إن الطلب مبقاش مستني
+        let alive = asks.filter { kill($0.hookPid, 0) == 0 || errno != ESRCH }
+        if alive != asks { asks = alive }
 
         if changed {
             sessions = dict.values.sorted { $0.updated > $1.updated }
@@ -195,8 +196,14 @@ final class ClaudeStore: ObservableObject {
             asks.removeAll { $0.sessionId == sid }
             return dict.removeValue(forKey: sid) != nil
         }
-        // كلود كمّل → الطلب اتجاوب من التيرمنال
-        if ["PostToolUse", "PostToolUseFailure", "Stop", "StopFailure", "UserPromptSubmit"].contains(event) {
+        // نفس الأداة خلصت → الطلب اتجاوب من التيرمنال. أدوات تانية شغالة جنبها (أو subagents)
+        // بتخلص وطلبك لسه مستني، فمنشيلش كروت الجلسة كلها
+        if event == "PostToolUse" || event == "PostToolUseFailure" {
+            let k = Self.key(j)
+            asks.removeAll { $0.sessionId == sid && $0.key == k }
+        }
+        // الدور خلص أو كتبت رسالة جديدة → مفيش طلب مستني
+        if ["Stop", "StopFailure", "UserPromptSubmit"].contains(event) {
             asks.removeAll { $0.sessionId == sid }
         }
 
@@ -265,6 +272,13 @@ final class ClaudeStore: ObservableObject {
             DispatchQueue.main.async { self.onTransition?(snapshot) }
         }
         return true
+    }
+
+    /// بيميّز استخدام أداة بعينه: اسمها + مدخلاتها مترتبة
+    private static func key(_ j: [String: Any]) -> String {
+        let input = j["tool_input"] as? [String: Any] ?? [:]
+        let data = try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys])
+        return (j["tool_name"] as? String ?? "") + ":" + (data.map { String(decoding: $0, as: UTF8.self) } ?? "")
     }
 
     /// بيحدّث قايمة المهام من نتيجة أداة؛ true لو اتغيّرت
@@ -340,6 +354,7 @@ final class ClaudeStore: ObservableObject {
         let cwd = j["cwd"] as? String ?? dict[sid]?.cwd ?? ""
         var ask = PermissionAsk(id: id, sessionId: sid, project: (cwd as NSString).lastPathComponent,
                                 tool: tool, detail: String(detail.prefix(400)), hookPid: hookPid)
+        ask.key = Self.key(j)
         if tool == "AskUserQuestion" {
             ask.questions = (input["questions"] as? [[String: Any]] ?? []).compactMap { q in
                 guard let text = q["question"] as? String else { return nil }

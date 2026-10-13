@@ -16,8 +16,9 @@
 
 ## Features
 
+- **Looks like the Dynamic Island.** A pill that springs open into a rounded island, with SF Pro, iOS colors, and blur transitions.
 - **Claude Code in the notch.** See every running `claude` session (working, waiting, or done), and click one to jump to its terminal tab (Terminal and iTerm2).
-- **Approve or deny from the notch.** When Claude asks for permission to use a tool, you can **Allow**, **Deny**, or send it back to the terminal without leaving what you're doing.
+- **Approve or deny from the notch.** When Claude asks for permission to use a tool, you can **Allow**, **Deny**, or send it back to the terminal without leaving what you're doing. The card stays until you answer, even while Claude runs other tools or subagents.
 - **Answer Claude's questions.** Single-choice questions, multi-select questions, and several questions in a row (with Next / Back) all work from the notch.
 - **Account usage.** Your Claude plan's 5-hour and weekly usage, with when each one resets (Pro and Max plans).
 - **Task progress.** When Claude works through a task list, each session shows `2/4` and a progress bar, plus the task it's on now.
