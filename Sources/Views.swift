@@ -36,7 +36,7 @@ struct NotchView: View {
     @ObservedObject var m: NotchModel
 
     var body: some View {
-        let shape = NotchShape(topRadius: m.expanded ? 14 : 6, bottomRadius: m.expanded ? 28 : 12)
+        let shape = NotchShape(topRadius: m.expanded ? 14 : 6, bottomRadius: m.expanded ? 36 : 14)
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 shape.fill(Color.black)
@@ -82,7 +82,7 @@ struct ClaudeBadge: View {
                     Text("\(c.working.count)").foregroundStyle(claudeOrange)
                 }
             } else if c.recentlyDone {
-                AnimatedSymbol(name: "checkmark.circle.fill", color: .green, motion: .still)
+                AnimatedSymbol(name: "checkmark.circle.fill", color: Theme.green, motion: .still)
             } else {
                 // جلسة مفتوحة بس مستنية أمر منك
                 AnimatedSymbol(name: "sparkle", color: claudeOrange.opacity(0.55), motion: .still)
@@ -91,7 +91,7 @@ struct ClaudeBadge: View {
                 }
             }
         }
-        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .font(.system(size: 12, weight: .bold))
         .frame(width: 34)
     }
 }
@@ -120,9 +120,9 @@ struct CollapsedContent: View {
                         if m.hasClaudeBadge { ClaudeBadge(m: m) }
                         if m.timerActive {
                             Text(clock(m.timerLeft))
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .font(.system(size: 11, weight: .bold))
                                 .monospacedDigit()
-                                .foregroundStyle(m.timerEnd == nil ? .white.opacity(0.5) : glow)
+                                .foregroundStyle(m.timerEnd == nil ? Theme.secondary : Theme.orange)
                                 .frame(width: 44)
                         }
                         if m.media.isPlaying { EqualizerBars(color: m.accent).frame(width: 20) }
@@ -146,11 +146,11 @@ struct CollapsedContent: View {
                         Text(b.text).lineLimit(1)
                         Image(systemName: b.icon)
                     }
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(b.color)
                     if let d = b.detail {
                         Text(d)
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .font(.system(size: 11, weight: .regular))
                             .foregroundStyle(.white.opacity(0.75))
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
@@ -167,67 +167,88 @@ struct CollapsedContent: View {
     }
 }
 
-/// كلود مستني موافقتك — الرد بيتكتب بس لما تدوس زرار
+/// أيقونة مربعة بحواف Apple، زي أيقونة التطبيق في الـ Dynamic Island
+struct AppGlyph: View {
+    let icon: String
+    var color: Color = claudeOrange
+    var size: CGFloat = 38
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
+            .fill(color.gradient)
+            .frame(width: size, height: size)
+            .overlay(Image(systemName: icon).font(.system(size: size * 0.45, weight: .semibold)).foregroundStyle(.white))
+    }
+}
+
+/// كلود مستني موافقتك — زي مكالمة جاية في الـ Dynamic Island. الرد بيتكتب بس لما تدوس زرار
 struct PermissionCard: View {
     @ObservedObject var m: NotchModel
     let ask: PermissionAsk
 
+    private var icon: String {
+        switch ask.tool {
+        case "Bash": return "terminal.fill"
+        case "Edit", "Write", "MultiEdit", "NotebookEdit": return "pencil"
+        case "Read": return "doc.text.fill"
+        case "WebFetch", "WebSearch": return "globe"
+        default: return "wrench.and.screwdriver.fill"
+        }
+    }
+
     var body: some View {
-        VStack(alignment: .trailing, spacing: 7) {
-            HStack(spacing: 6) {
-                if m.claude.asks.count > 1 {
-                    Text("+\(m.claude.asks.count - 1)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(claudeOrange.opacity(0.25)))
-                        .foregroundStyle(claudeOrange)
+        VStack(alignment: .trailing, spacing: 10) {
+            HStack(spacing: 10) {
+                circle("checkmark", Theme.green, tr("وافق", "Allow")) { m.claude.answer(ask, .allow) }
+                circle("xmark", Theme.red, tr("ارفض", "Deny")) { m.claude.answer(ask, .deny) }
+                circle("arrow.up.forward.app", Theme.fill, tr("جاوب من التيرمنال", "Answer in the terminal")) {
+                    m.claude.answer(ask, .terminal)
                 }
-                Spacer(minLength: 0)
-                Text(tr("كلود عايز يستخدم \(ask.tool) · \(ask.project)", "Claude wants to use \(ask.tool) · \(ask.project)"))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(claudeOrange)
-                    .lineLimit(1)
-                Image(systemName: "exclamationmark.shield.fill").foregroundStyle(claudeOrange)
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    HStack(spacing: 4) {
+                        if m.claude.asks.count > 1 {
+                            Text("+\(m.claude.asks.count - 1)").foregroundStyle(claudeOrange)
+                        }
+                        Text(ask.project).foregroundStyle(Theme.secondary)
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    Text(tr("عايز يستخدم \(ask.tool)", "Wants to use \(ask.tool)"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .lineLimit(1)
+                AppGlyph(icon: icon)
             }
             Text(ask.detail.isEmpty ? ask.tool : ask.detail)
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineLimit(3)
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
+                .padding(.horizontal, 10).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.card))
                 .environment(\.layoutDirection, .leftToRight)
-            HStack(spacing: 8) {
-                button(tr("التيرمنال", "Terminal"), "arrow.up.forward.app", .white.opacity(0.12), .white) {
-                    m.claude.answer(ask, .terminal)
-                }
-                Spacer(minLength: 0)
-                button(tr("ارفض", "Deny"), "xmark", Color.red.opacity(0.25), .red) { m.claude.answer(ask, .deny) }
-                button(tr("وافق", "Allow"), "checkmark", Color.green, .black) { m.claude.answer(ask, .allow) }
-            }
         }
         .langDirection()
-        .padding(.horizontal, 20)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 12)
     }
 
-    private func button(_ title: String, _ icon: String, _ bg: Color, _ fg: Color,
-                        _ action: @escaping () -> Void) -> some View {
+    private func circle(_ icon: String, _ bg: Color, _ help: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                Text(title)
-                Image(systemName: icon).fixedDirection()
-            }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(fg)
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(Capsule().fill(bg))
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(bg))
+                .fixedDirection()
         }
         .buttonStyle(.plain)
+        .help(help)
     }
 }
 
-/// كلود بيسألك (AskUserQuestion): سؤال في كل صفحة، والإجابات بتتبعت مرة واحدة في الآخر
+/// كلود بيسألك (AskUserQuestion): سؤال في كل صفحة زي قايمة iOS، والإجابات بتتبعت مرة واحدة في الآخر
 struct QuestionCard: View {
     @ObservedObject var m: NotchModel
     let ask: PermissionAsk
@@ -239,57 +260,56 @@ struct QuestionCard: View {
     private var answered: Bool { !(picked[page] ?? []).isEmpty }
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: 7) {
+        VStack(alignment: .trailing, spacing: 8) {
             HStack(spacing: 6) {
-                if m.claude.asks.count > 1 {
-                    Text("+\(m.claude.asks.count - 1)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Capsule().fill(claudeOrange.opacity(0.25)))
-                        .foregroundStyle(claudeOrange)
-                }
                 if ask.questions.count > 1 {
-                    Text("\(page + 1)/\(ask.questions.count)")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.5))
+                    Text(tr("\(page + 1) من \(ask.questions.count)", "\(page + 1) of \(ask.questions.count)"))
+                        .foregroundStyle(Theme.tertiary)
+                }
+                if m.claude.asks.count > 1 {
+                    Text("+\(m.claude.asks.count - 1)").foregroundStyle(claudeOrange)
                 }
                 Spacer(minLength: 0)
                 Text("\(q.header.isEmpty ? tr("كلود بيسألك", "Claude asks") : q.header) · \(ask.project)")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(claudeOrange)
+                    .foregroundStyle(Theme.secondary)
                     .lineLimit(1)
-                Image(systemName: "questionmark.bubble.fill").foregroundStyle(claudeOrange)
+                AppGlyph(icon: "questionmark", size: 20)
             }
-            Text(q.text + (q.multi ? tr("  (اختار أكتر من واحدة)", "  (pick one or more)") : ""))
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .font(.system(size: 11, weight: .medium))
+            Text(q.text)
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-            VStack(spacing: 4) {
-                ForEach(Array(q.options.enumerated()), id: \.offset) { i, o in option(i, o) }
-            }
-            HStack(spacing: 8) {
-                pill(tr("التيرمنال", "Terminal"), "arrow.up.forward.app", .white.opacity(0.12), .white) {
-                    m.claude.answer(ask, .terminal)
+            VStack(spacing: 0) {
+                ForEach(Array(q.options.enumerated()), id: \.offset) { i, o in
+                    if i > 0 { Rectangle().fill(Theme.separator).frame(height: 0.5).padding(.horizontal, 12) }
+                    option(i, o)
                 }
+            }
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.card))
+            HStack(spacing: 8) {
+                Button { m.claude.answer(ask, .terminal) } label: {
+                    Text(tr("جاوب من التيرمنال", "Answer in Terminal"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.blue)
+                }
+                .buttonStyle(.plain)
                 Spacer(minLength: 0)
                 if page > 0 {
-                    pill(tr("السابق", "Back"), tr("chevron.right", "chevron.left"), .white.opacity(0.12), .white) { page -= 1 }
+                    capsule(tr("السابق", "Back"), primary: false) { page -= 1 }
                 }
-                pill(isLast ? tr("ابعت", "Send") : tr("التالي", "Next"), isLast ? "paperplane.fill" : tr("chevron.left", "chevron.right"),
-                     answered ? Color.green : .white.opacity(0.1), answered ? .black : .white.opacity(0.4),
-                     iconAfter: true) {
-                    next()
-                }
-                .disabled(!answered)
+                capsule(isLast ? tr("ابعت", "Send") : tr("التالي", "Next"), primary: true) { next() }
+                    .disabled(!answered)
             }
         }
         .langDirection()
-        .padding(.horizontal, 20)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 12)
     }
 
+    /// اختيار واحد: علامة صح في الآخر. أكتر من اختيار: دايرة في الأول (زي وضع التعديل في iOS)
     private func option(_ i: Int, _ o: AskQuestion.Option) -> some View {
         let on = picked[page]?.contains(i) ?? false
         return Button {
@@ -301,28 +321,33 @@ struct QuestionCard: View {
             }
             picked[page] = set
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                if !q.multi {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.blue)
+                        .opacity(on ? 1 : 0)
+                }
                 VStack(alignment: .trailing, spacing: 1) {
                     Text(o.label)
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .font(.system(size: 13))
                         .foregroundStyle(.white)
                     if !o.detail.isEmpty {
                         Text(o.detail)
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.55))
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.secondary)
                     }
                 }
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                Image(systemName: q.multi ? (on ? "checkmark.square.fill" : "square")
-                                          : (on ? "largecircle.fill.circle" : "circle"))
-                    .font(.system(size: 13))
-                    .foregroundStyle(on ? claudeOrange : .white.opacity(0.4))
+                if q.multi {
+                    Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 17))
+                        .foregroundStyle(on ? Theme.blue : Theme.tertiary)
+                }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 12)
             .frame(height: AskQuestion.rowHeight)
-            .background(RoundedRectangle(cornerRadius: 8)
-                .fill(on ? claudeOrange.opacity(0.22) : Color.white.opacity(0.07)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -339,23 +364,14 @@ struct QuestionCard: View {
         m.claude.answer(ask, .answers(answers))
     }
 
-    private func pill(_ title: String, _ icon: String, _ bg: Color, _ fg: Color, iconAfter: Bool = false,
-                      _ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                // الكارت معكوس في الإنجليزي، فالترتيب ده بيحط الأيقونة بعد الكلمة
-                if iconAfter && Lang.current == .en {
-                    Image(systemName: icon).fixedDirection()
-                    Text(title)
-                } else {
-                    Text(title)
-                    Image(systemName: icon).fixedDirection()
-                }
-            }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundStyle(fg)
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(Capsule().fill(bg))
+    private func capsule(_ title: String, primary: Bool, _ action: @escaping () -> Void) -> some View {
+        let on = !primary || answered
+        return Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(primary ? (on ? Color.white : Theme.tertiary) : .white)
+                .padding(.horizontal, 14).padding(.vertical, 6)
+                .background(Capsule().fill(primary && on ? Theme.blue : Theme.fill))
         }
         .buttonStyle(.plain)
     }
@@ -383,7 +399,7 @@ struct Artwork: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: radius))
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
 
@@ -431,28 +447,41 @@ struct ExpandedContent: View {
     }
 }
 
+/// زي الـ segmented control في iOS: كبسولة واحدة والمختار جواها أفتح
 struct TabBar: View {
     @ObservedObject var m: NotchModel
+    @Namespace private var ns
+
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             ForEach(Tab.allCases, id: \.self) { t in
                 Button { m.tab = t } label: {
                     Image(systemName: t.icon)
-                        .font(.system(size: 11, weight: .semibold))
-                        .frame(width: 28, height: 22)
-                        .foregroundStyle(m.tab == t ? Color.black : .white.opacity(0.55))
-                        .background(Capsule().fill(m.tab == t ? glow : Color.white.opacity(0.07)))
-                        .overlay(alignment: .topTrailing) {
-                            if t == .claude, !m.claude.waiting.isEmpty {
-                                Circle().fill(claudeOrange).frame(width: 7, height: 7)
-                            } else if t == .settings, m.updates.latest != nil {
-                                Circle().fill(glow).frame(width: 7, height: 7)
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(width: 30, height: 20)
+                        .foregroundStyle(m.tab == t ? Color.white : Theme.secondary)
+                        .background {
+                            if m.tab == t {
+                                Capsule().fill(Theme.selected)
+                                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                                    .matchedGeometryEffect(id: "tab", in: ns)
                             }
                         }
+                        .overlay(alignment: .topTrailing) {
+                            if t == .claude, !m.claude.waiting.isEmpty {
+                                Circle().fill(claudeOrange).frame(width: 6, height: 6)
+                            } else if t == .settings, m.updates.latest != nil {
+                                Circle().fill(Theme.blue).frame(width: 6, height: 6)
+                            }
+                        }
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
+        .padding(2)
+        .background(Capsule().fill(Theme.fill))
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: m.tab)
         .fixedDirection()
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
@@ -486,26 +515,26 @@ struct HomeTab: View {
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
             Text(m.speech ?? greeting)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(m.speech == nil ? Color.white.opacity(0.7) : glow)
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 if let b = m.battery {
                     HStack(spacing: 4) {
-                        Text("\(b)%").font(.system(size: 11, weight: .semibold, design: .rounded))
+                        Text("\(b)%").font(.system(size: 11, weight: .semibold))
                         Image(systemName: m.charging ? "battery.100.bolt"
                               : b > 75 ? "battery.100" : b > 50 ? "battery.75"
                               : b > 25 ? "battery.50" : "battery.25")
                     }
-                    .foregroundStyle(b <= 20 && !m.charging ? Color.red : Color.green)
+                    .foregroundStyle(b <= 20 && !m.charging ? Theme.red : Theme.green)
                 }
                 Text(Self.timeFmt.string(from: m.now))
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(.white)
                     .monospacedDigit()
             }
             Text(Self.dateFmt.string(from: m.now))
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.5))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.secondary)
             HStack(spacing: 10) {
                 if let s = m.claude.sessions.first {
                     Label(m.claude.sessions.count > 1 ? tr("\(m.claude.sessions.count) جلسات", "\(m.claude.sessions.count) sessions") : s.project,
@@ -519,7 +548,7 @@ struct HomeTab: View {
                         .onTapGesture { m.tab = .music }
                 }
             }
-            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .font(.system(size: 10, weight: .medium))
             .lineLimit(1)
             .padding(.top, 2)
         }
@@ -535,9 +564,9 @@ struct MusicTab: View {
             VStack(alignment: .trailing, spacing: 8) {
                 HStack(spacing: 12) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(i.title).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                        Text(i.artist).font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
+                        Text(i.title).font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
+                        Text(i.artist).font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Theme.secondary)
                         if let app = m.media.appName {
                             HStack(spacing: 4) {
                                 Text(app)
@@ -545,7 +574,7 @@ struct MusicTab: View {
                                     Image(nsImage: icon).resizable().frame(width: 12, height: 12)
                                 }
                             }
-                            .font(.system(size: 10)).foregroundStyle(.white.opacity(0.4))
+                            .font(.system(size: 10)).foregroundStyle(Theme.tertiary)
                         }
                     }
                     .lineLimit(1)
@@ -566,9 +595,9 @@ struct MusicTab: View {
                         Text(clock(en ? i.duration : pos))
                     }
                     .fixedDirection()
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .font(.system(size: 9, weight: .medium))
                     .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Theme.secondary)
                 }
                 HStack(spacing: 22) {
                     control("backward.fill") { m.media.send(.previous) }
@@ -580,9 +609,9 @@ struct MusicTab: View {
             }
         } else {
             VStack(alignment: .trailing, spacing: 6) {
-                Text(tr("مفيش حاجة شغالة 🎧", "Nothing playing 🎧")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("مفيش حاجة شغالة 🎧", "Nothing playing 🎧")).font(.system(size: 14, weight: .bold))
                 Text(tr("شغّل أغنية من Spotify أو Music أو YouTube وهتظهر هنا", "Play something on Spotify, Music, or YouTube and it shows up here"))
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondary)
             }
             .foregroundStyle(.white)
             .padding(.top, 14)
@@ -611,11 +640,11 @@ struct ClaudeTab: View {
     @ViewBuilder private var sessions: some View {
         if m.claude.sessions.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
-                Text(tr("مفيش جلسات كلود مفتوحة ✳️", "No Claude sessions open ✳️")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("مفيش جلسات كلود مفتوحة ✳️", "No Claude sessions open ✳️")).font(.system(size: 14, weight: .bold))
                 Text(m.claude.hooksInstalled
                      ? tr("افتح claude في التيرمنال وهيظهر هنا", "Run claude in a terminal and it shows up here")
                      : tr("الـ hooks مش متركّبة في ~/.claude/settings.json", "Hooks aren't installed in ~/.claude/settings.json"))
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondary)
             }
             .foregroundStyle(.white)
             .padding(.top, 14)
@@ -662,9 +691,9 @@ struct UsageRow: View {
     }
 
     private func meter(_ title: String, _ w: UsageWindow, _ fmt: DateFormatter) -> some View {
-        let color: Color = w.percent < 70 ? .green : w.percent < 90 ? .orange : .red
+        let color: Color = w.percent < 70 ? Theme.green : w.percent < 90 ? Theme.orange : Theme.red
         return HStack(spacing: 5) {
-            Text("↻ " + fmt.string(from: w.resetsAt)).foregroundStyle(.white.opacity(0.35))
+            Text("↻ " + fmt.string(from: w.resetsAt)).foregroundStyle(Theme.tertiary)
             Text("\(Int(w.percent.rounded()))%").foregroundStyle(color).monospacedDigit()
             GeometryReader { g in
                 ZStack(alignment: .leading) {
@@ -674,9 +703,9 @@ struct UsageRow: View {
             }
             .frame(width: 28, height: 4)
             .fixedDirection()
-            Text(title).foregroundStyle(.white.opacity(0.7))
+            Text(title).foregroundStyle(Theme.secondary)
         }
-        .font(.system(size: 10, weight: .semibold, design: .rounded))
+        .font(.system(size: 10, weight: .semibold))
         .lineLimit(1)
     }
 }
@@ -688,10 +717,10 @@ struct SessionRow: View {
     private var chip: (String, Color) {
         switch s.state {
         case .working: return (tr("شغال", "Working"), claudeOrange)
-        case .waiting: return (tr("مستنيك", "Waiting"), .yellow)
-        case .done: return (tr("خلص", "Done"), .green)
+        case .waiting: return (tr("مستنيك", "Waiting"), Theme.yellow)
+        case .done: return (tr("خلص", "Done"), Theme.green)
         case .idle: return (tr("جاهز", "Ready"), .gray)
-        case .failed: return ("error", .red)
+        case .failed: return ("error", Theme.red)
         }
     }
 
@@ -704,27 +733,27 @@ struct SessionRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(ago).font(.system(size: 9, design: .rounded)).foregroundStyle(.white.opacity(0.35))
+            Text(ago).font(.system(size: 9)).foregroundStyle(Theme.tertiary)
                 .frame(width: 34, alignment: .leading)
             VStack(alignment: .trailing, spacing: 1) {
-                Text(s.project).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white)
+                Text(s.project).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
                 if let p = s.progress {
                     Text("\(p.done)/\(p.total) · \(s.activeTask ?? s.detail)")
-                        .font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+                        .font(.system(size: 10)).foregroundStyle(Theme.secondary)
                 } else {
-                    Text(s.detail).font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+                    Text(s.detail).font(.system(size: 10)).foregroundStyle(Theme.secondary)
                 }
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .trailing)
             Text(chip.0)
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(chip.1)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(chip.1.opacity(0.18)))
         }
         .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.card))
         .overlay(alignment: .bottom) {
             // شريط تقدم المهام في أسفل الكارت
             if let p = s.progress {
@@ -749,9 +778,9 @@ struct ClipboardTab: View {
         let c = m.clipboard
         if c.items.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
-                Text(tr("الكليب بورد فاضي 📋", "Clipboard is empty 📋")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("الكليب بورد فاضي 📋", "Clipboard is empty 📋")).font(.system(size: 14, weight: .bold))
                 Text(tr("أي حاجة تعملها copy هتتحفظ هنا (آخر 20)", "Anything you copy is saved here (last 20)"))
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondary)
             }
             .foregroundStyle(.white)
             .padding(.top, 14)
@@ -760,8 +789,8 @@ struct ClipboardTab: View {
                 ForEach(c.items.prefix(5)) { item in
                     HStack(spacing: 8) {
                         Text(c.lastCopied == item.id ? tr("اتنسخ ✓", "Copied ✓") : ago(item.date))
-                            .font(.system(size: 9, weight: .medium, design: .rounded))
-                            .foregroundStyle(c.lastCopied == item.id ? Color.green : .white.opacity(0.35))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(c.lastCopied == item.id ? Theme.green : .white.opacity(0.35))
                             .frame(width: 46, alignment: .leading)
                         Text(item.preview)
                             .font(.system(size: 11, design: .monospaced))
@@ -770,7 +799,7 @@ struct ClipboardTab: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.06)))
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.card))
                     .contentShape(Rectangle())
                     .onTapGesture { c.copy(item) }
                     .contextMenu {
@@ -810,9 +839,9 @@ struct ShelfTab: View {
             .padding(.top, 4)
         } else if shelf.items.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
-                Text(tr("الرف فاضي 🗂", "Shelf is empty 🗂")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("الرف فاضي 🗂", "Shelf is empty 🗂")).font(.system(size: 14, weight: .bold))
                 Text(tr("اسحب أي ملف على النوتش وسيبه هنا، أو ابعته AirDrop على طول", "Drag any file onto the notch to keep it here, or AirDrop it right away"))
-                    .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 11)).foregroundStyle(Theme.secondary)
                     .multilineTextAlignment(.trailing)
             }
             .foregroundStyle(.white)
@@ -821,27 +850,27 @@ struct ShelfTab: View {
             VStack(alignment: .trailing, spacing: 6) {
                 HStack(spacing: 12) {
                     Button { shelf.clear() } label: { Text(tr("مسح", "Clear")) }
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(Theme.tertiary)
                     Button { ShelfStore.airDrop(shelf.items) } label: {
                         Label(tr("AirDrop الكل", "AirDrop all"), systemImage: "dot.radiowaves.left.and.right")
                     }
-                    .foregroundStyle(glow)
+                    .foregroundStyle(Theme.blue)
                     Spacer()
-                    Text(tr("\(shelf.items.count) ملف", "\(shelf.items.count) files")).foregroundStyle(.white.opacity(0.45))
+                    Text(tr("\(shelf.items.count) ملف", "\(shelf.items.count) files")).foregroundStyle(Theme.tertiary)
                 }
                 .buttonStyle(.plain)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .font(.system(size: 10, weight: .semibold))
                 HStack(spacing: 8) {
                     if shelf.items.count > 4 {
                         Text("+\(shelf.items.count - 4)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Theme.secondary)
                             .help(tr("الباقي في Finder: كليك يمين ← وريهولي", "The rest: right-click → Show in Finder"))
                     }
                     ForEach(shelf.items.prefix(4).reversed(), id: \.self) { u in ShelfItem(url: u, shelf: shelf) }
                 }
                 Text(tr("اسحب الملف من هنا لأي مكان، أو كليك يمين للاختيارات", "Drag a file out from here, or right-click for options"))
-                    .font(.system(size: 9, design: .rounded)).foregroundStyle(.white.opacity(0.3))
+                    .font(.system(size: 9)).foregroundStyle(Theme.tertiary)
             }
         }
     }
@@ -855,12 +884,12 @@ struct ShelfItem: View {
         VStack(spacing: 4) {
             Image(nsImage: ShelfStore.icon(url)).resizable().frame(width: 40, height: 40)
             Text(url.lastPathComponent)
-                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(.white.opacity(0.8))
                 .lineLimit(1).truncationMode(.middle)
         }
         .frame(width: 64, height: 70)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.card))
         .contentShape(Rectangle())
         .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
         .onTapGesture(count: 2) { NSWorkspace.shared.open(url) }
@@ -885,13 +914,13 @@ struct DropZone: View {
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: icon).font(.system(size: 20, weight: .semibold))
-            Text(title).font(.system(size: 11, weight: .bold, design: .rounded))
+            Text(title).font(.system(size: 11, weight: .bold))
         }
-        .foregroundStyle(over ? Color.black : glow)
+        .foregroundStyle(over ? Color.white : Theme.blue)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(RoundedRectangle(cornerRadius: 12).fill(over ? glow : glow.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 12)
-            .strokeBorder(glow.opacity(over ? 0 : 0.5), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(over ? Theme.blue : Theme.blue.opacity(0.1)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(Theme.blue.opacity(over ? 0 : 0.5), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
         .scaleEffect(over ? 1.03 : 1)
         .animation(.spring(response: 0.25), value: over)
         .onDrop(of: [.fileURL], isTargeted: $over) { providers in
@@ -909,14 +938,18 @@ struct TimerTab: View {
         VStack(alignment: .trailing, spacing: 8) {
             HStack(spacing: 14) {
                 HStack(spacing: 8) {
-                    Button { m.resetTimer() } label: { Image(systemName: "arrow.counterclockwise") }
+                    Button { m.resetTimer() } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill(Theme.fill))
+                    }
                     Button {
                         m.timerEnd == nil ? m.startTimer() : m.pauseTimer()
                     } label: {
                         Image(systemName: m.timerEnd == nil ? "play.fill" : "pause.fill")
-                            .frame(width: 34, height: 34)
-                            .background(Circle().fill(glow))
-                            .foregroundStyle(.black)
+                            .frame(width: 36, height: 36)
+                            .background(Circle().fill((m.timerEnd == nil ? Theme.green : Theme.orange).opacity(0.25)))
+                            .foregroundStyle(m.timerEnd == nil ? Theme.green : Theme.orange)
                     }
                 }
                 .font(.system(size: 14, weight: .bold))
@@ -925,25 +958,25 @@ struct TimerTab: View {
                 .fixedDirection()
 
                 Text(clock(m.timerLeft))
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .font(.system(size: 38, weight: .light))
                     .monospacedDigit()
-                    .foregroundStyle(m.timerEnd == nil ? .white.opacity(0.6) : .white)
+                    .foregroundStyle(m.timerEnd == nil ? Theme.secondary : .white)
             }
             HStack(spacing: 6) {
                 ForEach([5.0, 15, 25, 50], id: \.self) { min in
                     Button { m.startTimer(minutes: min) } label: {
                         Text(tr("\(Int(min)) د", "\(Int(min)) min"))
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .font(.system(size: 11, weight: .semibold))
                             .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(Capsule().fill(m.timerTotal == min * 60 ? glow.opacity(0.25) : Color.white.opacity(0.08)))
+                            .background(Capsule().fill(m.timerTotal == min * 60 ? Theme.selected : Theme.fill))
                             .foregroundStyle(.white)
                     }
                     .buttonStyle(.plain)
                 }
             }
             .fixedDirection()
-            Text(tr("بومودورو 🍅 ركّز وأنا هنبهك", "Pomodoro 🍅 focus and I'll ping you")).font(.system(size: 10, design: .rounded))
-                .foregroundStyle(.white.opacity(0.4))
+            Text(tr("بومودورو 🍅 ركّز وأنا هنبهك", "Pomodoro 🍅 focus and I'll ping you")).font(.system(size: 10))
+                .foregroundStyle(Theme.tertiary)
         }
     }
 }
@@ -959,34 +992,39 @@ struct SettingsTab: View {
             }
             row(tr("يفتح مع تشغيل الماك", "Open at login"), isOn: Binding(get: { m.launchAtLogin }, set: { m.launchAtLogin = $0 }))
             HStack(spacing: 4) {
-                langButton(.en, "English")
-                langButton(.ar, "العربي")
+                HStack(spacing: 0) {
+                    langButton(.en, "English")
+                    langButton(.ar, "العربي")
+                }
+                .padding(2)
+                .background(Capsule().fill(Theme.fill))
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: m.lang)
                 Spacer(minLength: 0)
-                Text(tr("اللغة", "Language")).font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.6))
+                Text(tr("اللغة", "Language")).font(.system(size: 11)).foregroundStyle(Theme.secondary)
             }
             HStack(spacing: 6) {
                 if let v = m.updates.latest {
                     Button { NSWorkspace.shared.open(UpdateStore.page) } label: {
                         Label(tr("نزّل v\(v)", "Get v\(v)"), systemImage: "arrow.down.circle.fill")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(.black)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
                             .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Capsule().fill(glow))
+                            .background(Capsule().fill(Theme.blue))
                     }
                     .buttonStyle(.plain)
                 }
                 Spacer(minLength: 0)
-                Text("v\(UpdateStore.current)").foregroundStyle(.white.opacity(0.35))
-                Text("·").foregroundStyle(.white.opacity(0.35))
+                Text("v\(UpdateStore.current)").foregroundStyle(Theme.tertiary)
+                Text("·").foregroundStyle(Theme.tertiary)
                 Text(m.claude.hooksInstalled ? tr("متوصل بكلود كود", "Connected to Claude Code") : tr("مش متوصل بكلود كود", "Not connected to Claude Code"))
-                Circle().fill(m.claude.hooksInstalled ? Color.green : .red).frame(width: 7, height: 7)
+                Circle().fill(m.claude.hooksInstalled ? Theme.green : Theme.red).frame(width: 7, height: 7)
             }
-            .font(.system(size: 11, design: .rounded))
-            .foregroundStyle(.white.opacity(0.6))
+            .font(.system(size: 11))
+            .foregroundStyle(Theme.secondary)
             Button { NSApp.terminate(nil) } label: {
                 Label(tr("قفل روبو", "Quit Robo"), systemImage: "power")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.red.opacity(0.85))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.red)
             }
             .buttonStyle(.plain)
         }
@@ -995,10 +1033,10 @@ struct SettingsTab: View {
     private func langButton(_ l: Lang, _ title: String) -> some View {
         Button { m.lang = l } label: {
             Text(title)
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(m.lang == l ? Color.black : .white.opacity(0.6))
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(m.lang == l ? glow : Color.white.opacity(0.07)))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(m.lang == l ? Color.white : Theme.secondary)
+                .padding(.horizontal, 10).padding(.vertical, 3)
+                .background(Capsule().fill(m.lang == l ? Theme.selected : .clear))
         }
         .buttonStyle(.plain)
     }
@@ -1016,29 +1054,31 @@ struct SettingsTab: View {
                     Image(systemName: cur.isEmpty ? "speaker.slash.fill" : "speaker.wave.2.fill")
                     Text(cur.isEmpty ? tr("من غير", "None") : cur)
                 }
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(cur.isEmpty ? Color.white.opacity(0.4) : glow)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(cur.isEmpty ? Theme.tertiary : Theme.blue)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(Color.white.opacity(0.07)))
+                .background(Capsule().fill(Theme.fill))
             }
             .buttonStyle(.plain)
             .fixedDirection()
             .help(tr("دوس عشان تغيّر الصوت", "Click to change the sound"))
-            Text(e.title).font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.6))
+            Text(e.title).font(.system(size: 11)).foregroundStyle(Theme.secondary)
         }
     }
 
     private func row(_ title: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Capsule()
-                .fill(isOn.wrappedValue ? glow : Color.white.opacity(0.18))
-                .frame(width: 30, height: 17)
+                .fill(isOn.wrappedValue ? Theme.green : Theme.track)
+                .frame(width: 34, height: 20)
                 .overlay(alignment: isOn.wrappedValue ? .trailing : .leading) {
-                    Circle().fill(.white).frame(width: 13, height: 13).padding(2)
+                    Circle().fill(.white).frame(width: 16, height: 16)
+                        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
+                        .padding(2)
                 }
                 .fixedDirection()
                 .onTapGesture { withAnimation(.spring(response: 0.25)) { isOn.wrappedValue.toggle() } }
-            Text(title).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.white)
+            Text(title).font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
         }
     }
 }

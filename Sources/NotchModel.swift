@@ -54,6 +54,22 @@ enum SoundEvent: String, CaseIterable {
 let glow = Color(red: 0.31, green: 0.96, blue: 1.0)
 let claudeOrange = Color(red: 0.85, green: 0.47, blue: 0.34)
 
+/// ألوان iOS في الوضع الغامق (زي الـ Dynamic Island وقوايم الإعدادات)
+enum Theme {
+    static let card = Color(red: 0.110, green: 0.110, blue: 0.118)      // secondarySystemBackground
+    static let fill = Color(red: 0.173, green: 0.173, blue: 0.180)      // tertiarySystemBackground
+    static let track = Color(red: 0.224, green: 0.224, blue: 0.239)     // سويتش مقفول
+    static let selected = Color(red: 0.388, green: 0.388, blue: 0.400)  // الجزء المختار في الـ segmented control
+    static let separator = Color.white.opacity(0.1)
+    static let secondary = Color(red: 0.922, green: 0.922, blue: 0.961).opacity(0.6)
+    static let tertiary = Color(red: 0.922, green: 0.922, blue: 0.961).opacity(0.3)
+    static let blue = Color(nsColor: .systemBlue)
+    static let green = Color(nsColor: .systemGreen)
+    static let red = Color(nsColor: .systemRed)
+    static let orange = Color(nsColor: .systemOrange)
+    static let yellow = Color(nsColor: .systemYellow)
+}
+
 /// النظر والرمش، منفصلين عن الموديل عشان يتحدّثوا كتير من غير ما يرسموا كل حاجة
 final class EyeState: ObservableObject {
     @Published var look: CGPoint = .zero
@@ -157,7 +173,7 @@ final class NotchModel: ObservableObject {
         if let ask = claude.asks.first, !ask.questions.isEmpty {
             // على أطول سؤال عشان النوتش ميتنططش وانت بتقلّب بين الأسئلة
             let rows = CGFloat(ask.questions.map(\.options.count).max() ?? 1)
-            return CGSize(width: max(w, 480), height: baseSize.height + 112 + rows * (AskQuestion.rowHeight + 4))
+            return CGSize(width: max(w, 480), height: baseSize.height + 108 + rows * (AskQuestion.rowHeight + 1))
         }
         if !claude.asks.isEmpty { return CGSize(width: max(w, 460), height: baseSize.height + 100) }
         if let banner {
