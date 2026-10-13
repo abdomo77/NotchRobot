@@ -59,9 +59,10 @@ struct NotchView: View {
                 ShelfStore.load(providers) { urls in m.shelf.add(urls) }
                 return true
             }
-            .shadow(color: m.media.isPlaying ? m.accent.opacity(m.expanded ? 0.45 : 0.6)
+            // وميض خفيف بلون الأغنية، زي الـ Dynamic Island
+            .shadow(color: m.media.isPlaying ? m.accent.opacity(m.expanded ? 0.18 : 0.28)
                                              : .black.opacity(m.expanded ? 0.5 : 0),
-                    radius: m.media.isPlaying ? 10 : 12, y: m.media.isPlaying ? 2 : 4)
+                    radius: m.media.isPlaying ? 7 : 12, y: m.media.isPlaying ? 1 : 4)
             .animation(.easeInOut(duration: 0.6), value: m.accent)
             Spacer(minLength: 0)
         }
