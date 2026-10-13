@@ -2,32 +2,38 @@ import SwiftUI
 
 // MARK: - شكل النوتش
 
-struct NotchShape: Shape {
-    var topRadius: CGFloat
-    var bottomRadius: CGFloat
-
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(topRadius, bottomRadius) }
-        set { topRadius = newValue.first; bottomRadius = newValue.second }
+/// زي الـ Dynamic Island: كبسولة وهو مقفول، ومستطيل بحواف Apple كبيرة وهو مفتوح.
+/// نص القطر بيتحرك مع الـ spring فالشكل بيتمط ويرجع زي الآيفون
+struct IslandShape: Shape {
+    var radius: CGFloat
+    var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
     }
 
     func path(in r: CGRect) -> Path {
-        var p = Path()
-        p.move(to: CGPoint(x: r.minX, y: r.minY))
-        p.addQuadCurve(to: CGPoint(x: r.minX + topRadius, y: r.minY + topRadius),
-                       control: CGPoint(x: r.minX + topRadius, y: r.minY))
-        p.addLine(to: CGPoint(x: r.minX + topRadius, y: r.maxY - bottomRadius))
-        p.addQuadCurve(to: CGPoint(x: r.minX + topRadius + bottomRadius, y: r.maxY),
-                       control: CGPoint(x: r.minX + topRadius, y: r.maxY))
-        p.addLine(to: CGPoint(x: r.maxX - topRadius - bottomRadius, y: r.maxY))
-        p.addQuadCurve(to: CGPoint(x: r.maxX - topRadius, y: r.maxY - bottomRadius),
-                       control: CGPoint(x: r.maxX - topRadius, y: r.maxY))
-        p.addLine(to: CGPoint(x: r.maxX - topRadius, y: r.minY + topRadius))
-        p.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY),
-                       control: CGPoint(x: r.maxX - topRadius, y: r.minY))
-        p.closeSubpath()
-        return p
+        let c = min(radius, r.height / 2, r.width / 2)
+        return RoundedRectangle(cornerRadius: c, style: .continuous).path(in: r)
     }
+}
+
+/// المحتوى بيظهر ويختفي بـ blur وتصغير بسيط، زي محتوى الـ Dynamic Island
+struct BlurFade: ViewModifier {
+    let radius: CGFloat
+    let opacity: Double
+    func body(content: Content) -> some View { content.blur(radius: radius).opacity(opacity) }
+}
+
+extension AnyTransition {
+    static var island: AnyTransition {
+        .modifier(active: BlurFade(radius: 10, opacity: 0), identity: BlurFade(radius: 0, opacity: 1))
+            .combined(with: .scale(scale: 0.9, anchor: .top))
+    }
+}
+
+/// الـ spring بتاع الجزيرة: سريع وفيه نطّة خفيفة في الآخر
+extension Animation {
+    static let island = Animation.spring(response: 0.5, dampingFraction: 0.7)
 }
 
 // MARK: - Root
@@ -36,15 +42,14 @@ struct NotchView: View {
     @ObservedObject var m: NotchModel
 
     var body: some View {
-        let shape = NotchShape(topRadius: m.expanded ? 14 : 6, bottomRadius: m.expanded ? 36 : 14)
+        let shape = IslandShape(radius: min(m.size.height / 2, m.expanded ? 42 : 36))
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 shape.fill(Color.black)
                 if m.expanded {
-                    ExpandedContent(m: m)
-                        .transition(.opacity.combined(with: .scale(scale: 0.85, anchor: .top)))
+                    ExpandedContent(m: m).transition(.island)
                 } else {
-                    CollapsedContent(m: m).transition(.opacity)
+                    CollapsedContent(m: m).transition(.island)
                 }
             }
             .frame(width: m.size.width, height: m.size.height)
@@ -61,8 +66,8 @@ struct NotchView: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: m.expanded)
-        .animation(.spring(response: 0.42, dampingFraction: 0.78), value: m.size)
+        .animation(.island, value: m.expanded)
+        .animation(.island, value: m.size)
         .environment(\.colorScheme, .dark)
     }
 }
@@ -136,10 +141,10 @@ struct CollapsedContent: View {
             if let ask = m.claude.asks.first, !ask.questions.isEmpty {
                 QuestionCard(m: m, ask: ask)
                     .id(ask.id)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.island)
             } else if let ask = m.claude.asks.first {
                 PermissionCard(m: m, ask: ask)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.island)
             } else if let b = m.banner {
                 VStack(spacing: 3) {
                     HStack(spacing: 6) {
@@ -158,12 +163,12 @@ struct CollapsedContent: View {
                 }
                 .frame(height: b.detail == nil ? 30 : 54)
                 .padding(.horizontal, 20)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.island)
                 .id(b.id)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: m.banner)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: m.claude.asks)
+        .animation(.island, value: m.banner)
+        .animation(.island, value: m.claude.asks)
     }
 }
 
