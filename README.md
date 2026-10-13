@@ -54,7 +54,7 @@
 ## Feature showcase
 
 <p align="center">
-  <img src="docs/1-showcase-rtl.png" width="100%" alt="NotchRobot feature showcase with Arabic captions, read right to left: collapsed notch, home, Claude sessions, permission approval, usage warning, music, clipboard history and file shelf">
+  <img src="docs/6-1-showcase-rtl.png" width="100%" alt="NotchRobot feature showcase with Arabic captions, read right to left: collapsed notch, home, Claude sessions, permission approval, usage warning, music, clipboard history and file shelf">
 </p>
 
 ## Requirements
