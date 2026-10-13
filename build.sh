@@ -19,7 +19,7 @@ cat > $APP/Contents/Info.plist <<PLIST
   <key>CFBundleExecutable</key><string>NotchRobot</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleDisplayName</key><string>NotchRobot</string>
-  <key>CFBundleShortVersionString</key><string>2.2</string>
+  <key>CFBundleShortVersionString</key><string>2.3</string>
   <key>CFBundleVersion</key><string>$(date +%Y%m%d%H%M)</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>

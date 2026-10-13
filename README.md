@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="icon/AppIcon.iconset/icon_256x256.png" width="128" alt="NotchRobot icon">
+<img src="docs/hero.png" width="560" alt="NotchRobot: your AI companion, right in the notch">
 
 # NotchRobot
 
@@ -8,7 +8,7 @@
 
 [Download](https://github.com/abdomo77/NotchRobot/releases/latest) · [Build from source](#build-from-source) · [العربي](#بالعربي)
 
-<img src="docs/tab-home.png" width="600" alt="NotchRobot home">
+<img src="docs/tab-home-v23.png" width="600" alt="NotchRobot home">
 
 </div>
 
@@ -32,11 +32,11 @@
 - **Update check.** It tells you when a new version is out on GitHub.
 
 <p align="center">
-  <img src="docs/tab-claude.png" width="49%" alt="Claude sessions with account usage and task progress">
-  <img src="docs/card-question.png" width="49%" alt="Answering Claude's question from the notch">
+  <img src="docs/tab-claude-v23.png" width="49%" alt="Claude sessions with account usage and task progress">
+  <img src="docs/card-question-v23.png" width="49%" alt="Answering Claude's question from the notch">
 </p>
 <p align="center">
-  <img src="docs/card-permission.png" width="60%" alt="Approving a tool from the notch">
+  <img src="docs/card-permission-v23.png" width="60%" alt="Approving a tool from the notch">
 </p>
 
 ## Requirements
