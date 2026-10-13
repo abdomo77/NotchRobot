@@ -138,6 +138,7 @@ final class NotchModel: ObservableObject {
         voice.onError = { [weak self] t in self?.voiceFailed(t) }
         claude.onTransition = { [weak self] s in self?.claudeChanged(s) }
         claude.onError = { [weak self] s, fatal in self?.claudeFailed(s, fatal: fatal) }
+        claude.onUsageAlert = { [weak self] a in self?.usageAlert(a) }
     }
 
     // MARK: المزاج
@@ -282,6 +283,34 @@ final class NotchModel: ObservableObject {
     private var lastErrorSound: [String: Date] = [:]
 
     /// fatal = كلود وقف خالص (API error مثلاً)، غير كده أداة فشلت وهو كمّل
+    private static let usageTime: [Lang: DateFormatter] = {
+        func make(_ f: String, _ l: String) -> DateFormatter {
+            let d = DateFormatter(); d.locale = Locale(identifier: l); d.dateFormat = f; return d
+        }
+        return [.ar: make("EEEE h:mm a", "ar_EG"), .en: make("EEE h:mm a", "en_US")]
+    }()
+
+    private func usageAlert(_ a: UsageAlert) {
+        func name(_ k: UsageAlert.Kind) -> String {
+            k == .fiveHour ? tr("ليمت الـ 5 ساعات", "5-hour limit") : tr("الليمت الأسبوعي", "weekly limit")
+        }
+        switch a {
+        case let .high(k, pct, resetsAt):
+            let when = Self.usageTime[Lang.current]!.string(from: resetsAt)
+            let full = pct >= 100
+            show(Banner(icon: full ? "xmark.octagon.fill" : "exclamationmark.triangle.fill",
+                        text: full ? tr("وصلت لـ\(name(k))", "You've hit your \(name(k))")
+                                   : tr("استهلكت \(pct)% من \(name(k))", "\(pct)% of your \(name(k)) used"),
+                        color: full ? Theme.red : Theme.orange,
+                        detail: tr("بيرجع \(when)", "Resets \(when)")),
+                 sound: sound(.error), seconds: 7)
+        case let .reset(k):
+            show(Banner(icon: "arrow.counterclockwise.circle.fill", text: tr("\(name(k)) رجع ✨", "Your \(name(k)) is back ✨"),
+                        color: Theme.green, detail: tr("تقدر تكمّل شغل مع كلود", "You can get back to work with Claude")),
+                 sound: sound(.done), seconds: 6)
+        }
+    }
+
     /// إصدار جديد على GitHub: نقولك مرة واحدة بس لكل إصدار
     private func updateAvailable(_ v: String) {
         let key = "notifiedVersion"

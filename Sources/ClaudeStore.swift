@@ -52,6 +52,13 @@ struct UsageWindow: Equatable {
     let resetsAt: Date
 }
 
+/// تنبيه استهلاك: وصلت 90% في نافذة، أو النافذة رجعت بعد ما كنت وصلت
+enum UsageAlert {
+    enum Kind: String, CaseIterable { case fiveHour = "five_hour", week = "seven_day" }
+    case high(Kind, percent: Int, resetsAt: Date)
+    case reset(Kind)
+}
+
 /// سؤال من أداة AskUserQuestion: اختيار واحد أو أكتر
 struct AskQuestion: Equatable {
     struct Option: Equatable { let label: String; let detail: String }
@@ -82,6 +89,7 @@ final class ClaudeStore: ObservableObject {
     /// آخر مرة الـ status line كتب الأرقام (بيتحدّث بس وفيه جلسة شغالة)
     @Published private(set) var usageUpdated: Date?
 
+    var onUsageAlert: ((UsageAlert) -> Void)?
     /// بيتنادي لما جلسة تبقى مستنياك أو تخلص
     var onTransition: ((ClaudeSession) -> Void)?
     /// أداة فشلت (false) أو كلود وقف بسبب error (true)
@@ -336,6 +344,28 @@ final class ClaudeStore: ObservableObject {
         let now = Date()
         if let w = usage5h, w.resetsAt < now { usage5h = nil }
         if let w = usageWeek, w.resetsAt < now { usageWeek = nil }
+        checkUsageAlerts(now)
+    }
+
+    /// كل نافذة بتنبهك مرة لما توصل 90%، ومرة لما ترجع. بنحفظ وقت رجوعها في UserDefaults
+    /// عشان لو التطبيق اتقفل واتفتح ميكررش التنبيه، ولسه يقولك لما ترجع
+    private func checkUsageAlerts(_ now: Date) {
+        let d = UserDefaults.standard
+        for kind in UsageAlert.Kind.allCases {
+            let key = "usageAlert." + kind.rawValue
+            let warned = d.object(forKey: key) as? Double
+            if let warned, warned < now.timeIntervalSince1970 {
+                d.removeObject(forKey: key)
+                onUsageAlert?(.reset(kind))
+                continue
+            }
+            guard let w = kind == .fiveHour ? usage5h : usageWeek, w.percent >= 90 else { continue }
+            let t = w.resetsAt.timeIntervalSince1970
+            // نفس النافذة (وقت الرجوع ممكن يتحرك ثواني بين تحديث والتاني)
+            if let warned, abs(warned - t) < 600 { continue }
+            d.set(t, forKey: key)
+            onUsageAlert?(.high(kind, percent: Int(w.percent.rounded()), resetsAt: w.resetsAt))
+        }
     }
 
     private func addAsk(_ j: [String: Any], id: String, hookPid: Int32, dict: [String: ClaudeSession]) {
