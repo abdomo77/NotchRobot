@@ -14,18 +14,42 @@ struct ClaudeSession: Identifiable, Codable, Equatable {
     var terminal: String?
     var updated: Date
     var summary: String?
+    /// قايمة مهام كلود (TaskCreate/TaskUpdate أو TodoWrite). optional عشان sessions.json القديم يتقري
+    var tasks: [TaskItem]?
+
+    struct TaskItem: Codable, Equatable {
+        var id: String
+        var title: String
+        var status: String   // pending, in_progress, completed
+    }
 
     var project: String { (cwd as NSString).lastPathComponent }
 
+    /// (اللي خلص، الكل) — nil لو مفيش مهام أو كلها خلصت والجلسة مش شغالة
+    var progress: (done: Int, total: Int)? {
+        guard let t = tasks, !t.isEmpty else { return nil }
+        let done = t.filter { $0.status == "completed" }.count
+        if done == t.count, state != .working { return nil }
+        return (done, t.count)
+    }
+
+    var activeTask: String? { tasks?.first { $0.status == "in_progress" }?.title }
+
     var detail: String {
         switch state {
-        case .waiting: return message ?? "مستنيك توافق"
-        case .working: return tool ?? prompt ?? "بيفكّر…"
-        case .done: return summary ?? prompt.map { "خلص: \($0)" } ?? "خلص ✓"
-        case .idle: return "جاهز"
-        case .failed: return message ?? "وقف بسبب error"
+        case .waiting: return message ?? tr("مستنيك توافق", "Waiting for you")
+        case .working: return tool ?? prompt ?? tr("بيفكّر…", "Thinking…")
+        case .done: return summary ?? prompt.map { tr("خلص: \($0)", "Done: \($0)") } ?? tr("خلص ✓", "Done ✓")
+        case .idle: return tr("جاهز", "Ready")
+        case .failed: return message ?? tr("وقف بسبب error", "Stopped on an error")
         }
     }
+}
+
+/// استهلاك الحساب في نافذة (5 ساعات أو أسبوع)، جاي من الـ status line بتاع Claude Code
+struct UsageWindow: Equatable {
+    let percent: Double
+    let resetsAt: Date
 }
 
 /// سؤال من أداة AskUserQuestion: اختيار واحد أو أكتر
@@ -52,6 +76,10 @@ struct PermissionAsk: Identifiable, Equatable {
 final class ClaudeStore: ObservableObject {
     @Published private(set) var sessions: [ClaudeSession] = []
     @Published private(set) var asks: [PermissionAsk] = []
+    @Published private(set) var usage5h: UsageWindow?
+    @Published private(set) var usageWeek: UsageWindow?
+    /// آخر مرة الـ status line كتب الأرقام (بيتحدّث بس وفيه جلسة شغالة)
+    @Published private(set) var usageUpdated: Date?
 
     /// بيتنادي لما جلسة تبقى مستنياك أو تخلص
     var onTransition: ((ClaudeSession) -> Void)?
@@ -141,6 +169,7 @@ final class ClaudeStore: ObservableObject {
         if Date().timeIntervalSince(lastPrune) > 4.5 {
             lastPrune = Date()
             checkHooks()
+            readUsage()
             let before = dict.count
             dict = dict.filter { isAlive($0.value) }
             if dict.count != before { changed = true }
@@ -159,6 +188,9 @@ final class ClaudeStore: ObservableObject {
                        to dict: inout [String: ClaudeSession]) -> Bool {
         guard let sid = j["session_id"] as? String else { return false }
         let event = j["hook_event_name"] as? String ?? ""
+        if event == "PostToolUse", var s = dict[sid] {
+            if trackTasks(j, in: &s) { dict[sid] = s }
+        }
         if event == "SessionEnd" {
             asks.removeAll { $0.sessionId == sid }
             return dict.removeValue(forKey: sid) != nil
@@ -178,6 +210,8 @@ final class ClaudeStore: ObservableObject {
         switch event {
         case "SessionStart":
             s.state = .idle
+            // /clear أو جلسة جديدة: القايمة القديمة خلاص
+            if (j["source"] as? String) != "compact" { s.tasks = nil }
         case "UserPromptSubmit":
             s.state = .working
             s.prompt = short(j["prompt"] as? String, 60)
@@ -201,7 +235,7 @@ final class ClaudeStore: ObservableObject {
             s.message = short(msg, 70)
         case "PermissionRequest":
             s.state = .waiting
-            s.message = "عايز يستخدم \(j["tool_name"] as? String ?? "أداة")"
+            s.message = tr("عايز يستخدم \(j["tool_name"] as? String ?? "أداة")", "Wants to use \(j["tool_name"] as? String ?? "a tool")")
         case "PostToolUseFailure":
             s.state = .working
             s.message = nil
@@ -233,9 +267,66 @@ final class ClaudeStore: ObservableObject {
         return true
     }
 
+    /// بيحدّث قايمة المهام من نتيجة أداة؛ true لو اتغيّرت
+    private func trackTasks(_ j: [String: Any], in s: inout ClaudeSession) -> Bool {
+        let input = j["tool_input"] as? [String: Any] ?? [:]
+        func str(_ v: Any?) -> String? { (v as? String) ?? (v as? Int).map(String.init) }
+        var t = s.tasks ?? []
+        switch j["tool_name"] as? String {
+        case "TaskCreate":
+            // الـ id بيتحدد في النتيجة؛ لو مش موجود بنعدّ (الأرقام بتمشي 1، 2، 3…)
+            let res = j["tool_response"] as? [String: Any]
+            let id = str((res?["task"] as? [String: Any])?["id"])
+                ?? String((t.compactMap { Int($0.id) }.max() ?? 0) + 1)
+            t.removeAll { $0.id == id }
+            t.append(.init(id: id, title: input["subject"] as? String ?? "", status: "pending"))
+        case "TaskUpdate":
+            guard let id = str(input["taskId"]), let i = t.firstIndex(where: { $0.id == id }) else { return false }
+            if let st = input["status"] as? String {
+                if st == "deleted" { t.remove(at: i) } else { t[i].status = st }
+            }
+            if let sub = input["subject"] as? String, t.indices.contains(i), t[i].id == id { t[i].title = sub }
+        case "TodoWrite":
+            let todos = input["todos"] as? [[String: Any]] ?? []
+            t = todos.enumerated().map { n, d in
+                .init(id: String(n + 1), title: d["content"] as? String ?? "", status: d["status"] as? String ?? "pending")
+            }
+        default:
+            return false
+        }
+        s.tasks = t.isEmpty ? nil : t
+        return true
+    }
+
+    private var usageMtime: Date?
+
+    /// ~/.notchrobot/usage.json بيكتبه statusline.sh؛ النوافذ اللي وقتها عدّى بنشيلها
+    func readUsage() {
+        let url = Self.base.appendingPathComponent("usage.json")
+        let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        if let mtime, mtime != usageMtime {
+            usageMtime = mtime
+            if let d = try? Data(contentsOf: url),
+               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+               let r = j["rate_limits"] as? [String: Any] {
+                func window(_ k: String) -> UsageWindow? {
+                    guard let w = r[k] as? [String: Any], let p = (w["used_percentage"] as? NSNumber)?.doubleValue,
+                          let t = (w["resets_at"] as? NSNumber)?.doubleValue else { return nil }
+                    return UsageWindow(percent: p, resetsAt: Date(timeIntervalSince1970: t))
+                }
+                usage5h = window("five_hour")
+                usageWeek = window("seven_day")
+                usageUpdated = mtime
+            }
+        }
+        let now = Date()
+        if let w = usage5h, w.resetsAt < now { usage5h = nil }
+        if let w = usageWeek, w.resetsAt < now { usageWeek = nil }
+    }
+
     private func addAsk(_ j: [String: Any], id: String, hookPid: Int32, dict: [String: ClaudeSession]) {
         guard let sid = j["session_id"] as? String, !asks.contains(where: { $0.id == id }) else { return }
-        let tool = j["tool_name"] as? String ?? "أداة"
+        let tool = j["tool_name"] as? String ?? tr("أداة", "a tool")
         let input = j["tool_input"] as? [String: Any] ?? [:]
         let detail: String
         switch tool {
@@ -350,7 +441,15 @@ final class ClaudeStore: ObservableObject {
     }
 
     /// للـ --snapshot: جلسات ثابتة بدل الجلسات الحقيقية اللي على الجهاز
-    func preview(_ s: [ClaudeSession]) { sessions = s }
+    func preview(_ s: [ClaudeSession], asks a: [PermissionAsk] = [], usage: (Double, Double)? = nil) {
+        sessions = s
+        asks = a
+        if let (h, w) = usage {
+            usage5h = UsageWindow(percent: h, resetsAt: Date().addingTimeInterval(2 * 3600))
+            usageWeek = UsageWindow(percent: w, resetsAt: Date().addingTimeInterval(4 * 86400))
+            usageUpdated = Date()
+        }
+    }
 
     func remove(_ s: ClaudeSession) {
         sessions.removeAll { $0.id == s.id }

@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.claude.watch()
         model.voice.watch()
         model.claude.poll()
+        model.updates.start()
 
         Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.model.refreshBattery() }
         Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.model.tickSecond() }
@@ -129,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// فتحته تاني من Launchpad أو Spotlight وهو شغّال: نوريك إنه موجود
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         model.flash(.happy, for: 2)
-        model.show(Banner(icon: "hand.wave.fill", text: "روبو شغّال فوق 👋 قرّب الماوس من النوتش", color: glow), seconds: 3)
+        model.show(Banner(icon: "hand.wave.fill", text: tr("روبو شغّال فوق 👋 قرّب الماوس من النوتش", "Robo is up top 👋 move your mouse to the notch"), color: glow), seconds: 3)
         return false
     }
 
@@ -295,10 +296,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 /// --snapshot <dir>: يرسم كل حالات النوتش كصور PNG (للمراجعة من غير screen recording)
 @MainActor func snapshot(to dir: String) {
+    if let i = CommandLine.arguments.firstIndex(of: "--lang"), i + 1 < CommandLine.arguments.count,
+       let l = Lang(rawValue: CommandLine.arguments[i + 1]) { Lang.current = l }
     let m = NotchModel()
     m.battery = 76
+    let tasks: [ClaudeSession.TaskItem] = [
+        .init(id: "1", title: tr("أقرا الكود", "Read the code"), status: "completed"),
+        .init(id: "2", title: tr("أضيف شريط الاستهلاك", "Add the usage meter"), status: "completed"),
+        .init(id: "3", title: tr("أترجم الواجهة", "Translate the UI"), status: "in_progress"),
+        .init(id: "4", title: tr("أجرّب البيلد", "Test the build"), status: "pending"),
+    ]
     m.claude.preview([ClaudeSession(id: "demo", cwd: "/NotchRobot", state: .working, tool: "Edit · Views.swift",
-                                    pid: 0, updated: Date())])
+                                    pid: 0, updated: Date(), tasks: tasks)], usage: (23, 41))
     func save(_ name: String) {
         let v = NotchView(m: m).frame(width: NotchModel.maxSize.width + 20, height: m.size.height + 10)
             .background(Color(white: 0.85))
@@ -310,11 +319,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     save("collapsed")
     m.timerEnd = Date().addingTimeInterval(754)
-    m.banner = Banner(icon: "checkmark.circle.fill", text: "كلود خلص في NotchRobot ✨", color: .green)
+    m.banner = Banner(icon: "checkmark.circle.fill", text: tr("كلود خلص في NotchRobot ✨", "Claude finished in NotchRobot ✨"), color: .green)
     save("collapsed-banner")
     m.banner = nil
     m.expanded = true
     for t in Tab.allCases { m.tab = t; save("tab-\(t)") }
+    m.expanded = false
+    let perm = PermissionAsk(id: "p", sessionId: "demo", project: "NotchRobot", tool: "Bash",
+                             detail: "swiftc -O Sources/*.swift -o NotchRobot", hookPid: 0)
+    m.claude.preview(m.claude.sessions, asks: [perm])
+    save("card-permission")
+    var q = PermissionAsk(id: "q", sessionId: "demo", project: "NotchRobot", tool: "AskUserQuestion",
+                          detail: "", hookPid: 0)
+    q.questions = [AskQuestion(text: tr("نضيف أنهي مميزات؟", "Which features should we add?"), header: tr("مميزات", "Features"),
+                               multi: true, options: [
+                                   .init(label: tr("استهلاك الحساب", "Account usage"), detail: tr("5 ساعات وأسبوع", "5-hour and weekly limits")),
+                                   .init(label: tr("تقدم المهام", "Task progress"), detail: tr("3/7 جنب الجلسة", "3/7 next to the session")),
+                                   .init(label: tr("تحديثات", "Updates"), detail: tr("يقولك لما ينزل إصدار جديد", "Tells you when a new version is out")),
+                               ]),
+                   AskQuestion(text: "?", header: "", multi: false, options: [.init(label: "a", detail: "")])]
+    m.claude.preview(m.claude.sessions, asks: [q])
+    save("card-question")
 }
 
 if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {

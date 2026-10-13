@@ -19,19 +19,24 @@
 - **Claude Code in the notch.** See every running `claude` session (working, waiting, or done), and click one to jump to its terminal tab (Terminal and iTerm2).
 - **Approve or deny from the notch.** When Claude asks for permission to use a tool, you can **Allow**, **Deny**, or send it back to the terminal without leaving what you're doing.
 - **Answer Claude's questions.** Single-choice questions, multi-select questions, and several questions in a row (with Next / Back) all work from the notch.
+- **Account usage.** Your Claude plan's 5-hour and weekly usage, with when each one resets (Pro and Max plans).
+- **Task progress.** When Claude works through a task list, each session shows `2/4` and a progress bar, plus the task it's on now.
 - **Alerts.** A banner and a sound when Claude finishes, needs you, or hits an error, even over fullscreen apps.
 - **Now playing.** Shows the current song and artwork from Spotify, Apple Music, or YouTube, with the accent color taken from the artwork.
 - **Clipboard history.** Keeps your last 20 copies.
 - **Shelf.** Drag files onto the notch to keep them handy.
 - **Timer, battery, clock, and date.**
 - **The robot.** His eyes follow your mouse, and he blinks, sleeps, and reacts to what Claude is doing.
+- **English and Arabic.** It follows your Mac's language, and you can switch in Settings.
+- **Update check.** It tells you when a new version is out on GitHub.
 
 <p align="center">
-  <img src="docs/tab-claude.png" width="49%" alt="Claude sessions">
-  <img src="docs/collapsed-banner.png" width="49%" alt="Banner">
+  <img src="docs/tab-claude.png" width="49%" alt="Claude sessions with account usage and task progress">
+  <img src="docs/card-question.png" width="49%" alt="Answering Claude's question from the notch">
 </p>
-
-> The interface is in Egyptian Arabic.
+<p align="center">
+  <img src="docs/card-permission.png" width="60%" alt="Approving a tool from the notch">
+</p>
 
 ## Requirements
 
@@ -71,11 +76,21 @@ cd NotchRobot
 
 ## How the Claude Code integration works
 
-`install-hooks.sh` copies [`hook.sh`](hook.sh) to `~/.notchrobot/` and registers it for these Claude Code [hooks](https://docs.claude.com/en/docs/claude-code/hooks) in `~/.claude/settings.json`: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Notification`, `Stop`, `StopFailure`, and `PermissionRequest`. Before changing anything, it backs up your settings to `settings.json.bak-notchrobot`.
+`install-hooks.sh` copies [`hook.sh`](hook.sh) and [`statusline.sh`](statusline.sh) to `~/.notchrobot/` and registers it for these Claude Code [hooks](https://docs.claude.com/en/docs/claude-code/hooks) in `~/.claude/settings.json`: `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `Notification`, `Stop`, `StopFailure`, and `PermissionRequest`. Before changing anything, it backs up your settings to `settings.json.bak-notchrobot`.
 
 - Each hook event is written to `~/.notchrobot/inbox/`, and the app picks it up from there.
 - For `PermissionRequest`, the hook waits up to 5 minutes for your answer from the notch. If you don't answer, or you press **التيرمنال**, Claude asks in the terminal as usual.
 - If NotchRobot isn't running, the hook exits immediately and Claude Code behaves exactly as before.
+
+### Account usage
+
+Claude Code only shares your plan's usage with its [status line](https://code.claude.com/docs/en/statusline), so `install-hooks.sh` also sets `statusline.sh` as your status line. It saves the numbers to `~/.notchrobot/usage.json` for the notch and prints a short `5h 23% · 7d 41%` line in Claude Code.
+
+- It only works on **Pro and Max** plans, and the numbers update while a `claude` session is running.
+- If you already have a status line, the installer leaves it alone. To keep yours and still get usage in the notch, add this to your status line script:
+  ```sh
+  input=$(cat); printf '%s' "$input" | ~/.notchrobot/statusline.sh >/dev/null
+  ```
 
 If you prefer to set it up by hand, add `~/.notchrobot/hook.sh` as a `command` hook for each event above. Use `"matcher": "*"` for the tool events, and set a `timeout` of `310` for `PermissionRequest`.
 
@@ -89,13 +104,13 @@ If you prefer to set it up by hand, add `~/.notchrobot/hook.sh` as a `command` h
 pkill -x NotchRobot; rm -rf /Applications/NotchRobot.app ~/.notchrobot
 ```
 
-Then remove the `.notchrobot/hook.sh` entries from `~/.claude/settings.json`, or restore `settings.json.bak-notchrobot`.
+Then remove the `.notchrobot/hook.sh` entries and the `statusLine` from `~/.claude/settings.json`, or restore `settings.json.bak-notchrobot`.
 
 ---
 
 ## بالعربي
 
-روبوت صغير بيعيش في النوتش بتاع الماك وبيتابعلك جلسات Claude Code. بيوريك كل جلسة شغالة وتوصلك منه تنبيهات لما كلود يخلص أو يحتاجك. وتقدر من النوتش توافق على طلبات الإذن أو ترفضها، وتجاوب على أسئلة كلود سواء كانت اختيار واحد أو أكتر من اختيار أو أكتر من سؤال. وكمان فيه الأغنية الشغالة، وتاريخ الكليب بورد، ورف للملفات، وتايمر.
+روبوت صغير بيعيش في النوتش بتاع الماك وبيتابعلك جلسات Claude Code. بيوريك كل جلسة شغالة وتوصلك منه تنبيهات لما كلود يخلص أو يحتاجك. وتقدر من النوتش توافق على طلبات الإذن أو ترفضها، وتجاوب على أسئلة كلود سواء كانت اختيار واحد أو أكتر من اختيار أو أكتر من سؤال. وبيعرض استهلاك حسابك في الـ 5 ساعات وفي الأسبوع، وتقدم المهام في كل جلسة. وكمان فيه الأغنية الشغالة، وتاريخ الكليب بورد، ورف للملفات، وتايمر. الواجهة بالعربي والإنجليزي، وبيقولك لما ينزل إصدار جديد.
 
 **التسطيب:**
 1. نزّل `NotchRobot.zip` من [آخر إصدار](https://github.com/abdomo77/NotchRobot/releases/latest) وفكّه.

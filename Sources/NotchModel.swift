@@ -34,9 +34,9 @@ enum SoundEvent: String, CaseIterable {
     case waiting, done, error
     var title: String {
         switch self {
-        case .waiting: return "كلود مستنيك"
-        case .done: return "كلود خلص"
-        case .error: return "حصل error"
+        case .waiting: return tr("كلود مستنيك", "Claude is waiting")
+        case .done: return tr("كلود خلص", "Claude is done")
+        case .error: return tr("حصل error", "Error")
         }
     }
     var fallback: String {
@@ -67,6 +67,7 @@ final class NotchModel: ObservableObject {
     let clipboard = ClipboardStore()
     let shelf = ShelfStore()
     let voice = VoiceStore()
+    let updates = UpdateStore()
     private var bag = Set<AnyCancellable>()
 
     @Published var expanded = false {
@@ -90,6 +91,10 @@ final class NotchModel: ObservableObject {
     @Published var timerEnd: Date?
     @Published var timerPausedLeft: TimeInterval?
 
+    @Published var lang = Lang.current {
+        didSet { Lang.current = lang; UserDefaults.standard.set(lang.rawValue, forKey: "lang") }
+    }
+
     @Published var soundsOn = UserDefaults.standard.object(forKey: "soundsOn") as? Bool ?? true {
         didSet { UserDefaults.standard.set(soundsOn, forKey: "soundsOn") }
     }
@@ -103,6 +108,8 @@ final class NotchModel: ObservableObject {
         clipboard.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
         shelf.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
         voice.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
+        updates.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }.store(in: &bag)
+        updates.onNew = { [weak self] v in self?.updateAvailable(v) }
         voice.onResult = { [weak self] t in self?.voiceTyped(t) }
         voice.onError = { [weak self] t in self?.voiceFailed(t) }
         claude.onTransition = { [weak self] s in self?.claudeChanged(s) }
@@ -165,10 +172,11 @@ final class NotchModel: ObservableObject {
             let rows = CGFloat(min(max(clipboard.items.count, 1), 5))
             return CGSize(width: 480, height: max(180, 84 + rows * 34))
         }
-        if tab == .settings { return CGSize(width: 480, height: 230) }
+        if tab == .settings { return CGSize(width: 480, height: soundsOn ? 262 : 196) }
         if tab == .claude {
             let rows = CGFloat(min(max(claude.sessions.count, 1), 4))
-            return CGSize(width: 480, height: max(180, 90 + rows * 46))
+            let usage: CGFloat = claude.usage5h != nil || claude.usageWeek != nil ? 26 : 0
+            return CGSize(width: 480, height: min(Self.maxSize.height, max(180, 90 + rows * 46 + usage)))
         }
         return CGSize(width: 480, height: 180)
     }
@@ -183,10 +191,10 @@ final class NotchModel: ObservableObject {
 
     // MARK: أحداث
 
-    private let lines = [
-        "أهلاً! أنا روبو 🤖", "بيب بوب… بشتغل معاك 🔊", "متنساش تشرب مية 💧",
-        "يلا نشتغل! 💪", "خد بريك صغير ☕️", "إنت جامد النهارده 😎",
-    ]
+    private var lines: [String] { [
+        tr("أهلاً! أنا روبو 🤖", "Hi! I'm Robo 🤖"), tr("بيب بوب… بشتغل معاك 🔊", "Beep boop… working with you 🔊"), tr("متنساش تشرب مية 💧", "Don't forget to drink water 💧"),
+        tr("يلا نشتغل! 💪", "Let's get to work! 💪"), tr("خد بريك صغير ☕️", "Take a short break ☕️"), tr("إنت جامد النهارده 😎", "You're crushing it today 😎"),
+    ] }
 
     func poke() {
         flash(.happy, for: 2.8)
@@ -214,11 +222,11 @@ final class NotchModel: ObservableObject {
         case .waiting:
             tab = .claude
             flash(.surprised, for: 1.5)
-            show(Banner(icon: "exclamationmark.bubble.fill", text: "كلود محتاجك في \(s.project)", color: claudeOrange),
+            show(Banner(icon: "exclamationmark.bubble.fill", text: tr("كلود محتاجك في \(s.project)", "Claude needs you in \(s.project)"), color: claudeOrange),
                  sound: sound(.waiting), seconds: 6)
         case .done:
             flash(.happy)
-            show(Banner(icon: "checkmark.circle.fill", text: "كلود خلص في \(s.project) ✨", color: .green,
+            show(Banner(icon: "checkmark.circle.fill", text: tr("كلود خلص في \(s.project) ✨", "Claude finished in \(s.project) ✨"), color: .green,
                         detail: s.summary),
                  sound: sound(.done), seconds: s.summary == nil ? 4 : 8)
         default: break
@@ -229,23 +237,32 @@ final class NotchModel: ObservableObject {
 
     private func voiceTyped(_ text: String) {
         flash(.happy, for: 1.8)
-        show(Banner(icon: "mic.fill", text: "سمعتك وكتبتها ✍️", color: glow, detail: text),
+        show(Banner(icon: "mic.fill", text: tr("سمعتك وكتبتها ✍️", "Heard you and typed it ✍️"), color: glow, detail: text),
              seconds: min(8, 3 + Double(text.count) / 25))
     }
 
     private func voiceFailed(_ message: String) {
         flash(.surprised, for: 1.2)
-        show(Banner(icon: "mic.slash.fill", text: message.isEmpty ? "مسمعتكش كويس 🙉" : message, color: .orange),
+        show(Banner(icon: "mic.slash.fill", text: message.isEmpty ? tr("مسمعتكش كويس 🙉", "Didn't catch that 🙉") : message, color: .orange),
              seconds: 3)
     }
 
     private var lastErrorSound: [String: Date] = [:]
 
     /// fatal = كلود وقف خالص (API error مثلاً)، غير كده أداة فشلت وهو كمّل
+    /// إصدار جديد على GitHub: نقولك مرة واحدة بس لكل إصدار
+    private func updateAvailable(_ v: String) {
+        let key = "notifiedVersion"
+        guard UserDefaults.standard.string(forKey: key) != v else { return }
+        UserDefaults.standard.set(v, forKey: key)
+        show(Banner(icon: "arrow.down.circle.fill", text: tr("فيه إصدار جديد v\(v) — من الإعدادات", "NotchRobot v\(v) is out — see Settings"),
+                    color: glow), seconds: 6)
+    }
+
     private func claudeFailed(_ s: ClaudeSession, fatal: Bool) {
         if fatal {
             flash(.surprised, for: 1.5)
-            show(Banner(icon: "xmark.octagon.fill", text: "كلود وقف بسبب error في \(s.project)", color: .red,
+            show(Banner(icon: "xmark.octagon.fill", text: tr("كلود وقف بسبب error في \(s.project)", "Claude stopped on an error in \(s.project)"), color: .red,
                         detail: s.message),
                  sound: sound(.error), seconds: 8)
             return
@@ -289,7 +306,7 @@ final class NotchModel: ObservableObject {
             let pct = cap * 100 / max
             let isCharging = (d[kIOPSIsChargingKey] as? Bool) ?? false
             if isCharging && !charging && battery != nil {
-                show(Banner(icon: "bolt.fill", text: "بيشحن — \(pct)%", color: .green), sound: "Pop", seconds: 3)
+                show(Banner(icon: "bolt.fill", text: tr("بيشحن — \(pct)%", "Charging — \(pct)%"), color: .green), sound: "Pop", seconds: 3)
                 flash(.happy)
             }
             battery = pct
@@ -329,7 +346,7 @@ final class NotchModel: ObservableObject {
         if let e = timerEnd, e <= t {
             timerEnd = nil
             flash(.happy, for: 4)
-            show(Banner(icon: "alarm.fill", text: "الوقت خلص! ⏰ خد بريك", color: glow), sound: "Hero", seconds: 6)
+            show(Banner(icon: "alarm.fill", text: tr("الوقت خلص! ⏰ خد بريك", "Time's up! ⏰ Take a break"), color: glow), sound: "Hero", seconds: 6)
         }
     }
 

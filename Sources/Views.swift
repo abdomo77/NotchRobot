@@ -183,7 +183,7 @@ struct PermissionCard: View {
                         .foregroundStyle(claudeOrange)
                 }
                 Spacer(minLength: 0)
-                Text("كلود عايز يستخدم \(ask.tool) · \(ask.project)")
+                Text(tr("كلود عايز يستخدم \(ask.tool) · \(ask.project)", "Claude wants to use \(ask.tool) · \(ask.project)"))
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(claudeOrange)
                     .lineLimit(1)
@@ -198,14 +198,15 @@ struct PermissionCard: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.08)))
                 .environment(\.layoutDirection, .leftToRight)
             HStack(spacing: 8) {
-                button("التيرمنال", "arrow.up.forward.app", .white.opacity(0.12), .white) {
+                button(tr("التيرمنال", "Terminal"), "arrow.up.forward.app", .white.opacity(0.12), .white) {
                     m.claude.answer(ask, .terminal)
                 }
                 Spacer(minLength: 0)
-                button("ارفض", "xmark", Color.red.opacity(0.25), .red) { m.claude.answer(ask, .deny) }
-                button("وافق", "checkmark", Color.green, .black) { m.claude.answer(ask, .allow) }
+                button(tr("ارفض", "Deny"), "xmark", Color.red.opacity(0.25), .red) { m.claude.answer(ask, .deny) }
+                button(tr("وافق", "Allow"), "checkmark", Color.green, .black) { m.claude.answer(ask, .allow) }
             }
         }
+        .langDirection()
         .padding(.horizontal, 20)
         .padding(.bottom, 10)
     }
@@ -215,7 +216,7 @@ struct PermissionCard: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Text(title)
-                Image(systemName: icon)
+                Image(systemName: icon).fixedDirection()
             }
             .font(.system(size: 11, weight: .bold, design: .rounded))
             .foregroundStyle(fg)
@@ -253,13 +254,13 @@ struct QuestionCard: View {
                         .foregroundStyle(.white.opacity(0.5))
                 }
                 Spacer(minLength: 0)
-                Text("\(q.header.isEmpty ? "كلود بيسألك" : q.header) · \(ask.project)")
+                Text("\(q.header.isEmpty ? tr("كلود بيسألك", "Claude asks") : q.header) · \(ask.project)")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundStyle(claudeOrange)
                     .lineLimit(1)
                 Image(systemName: "questionmark.bubble.fill").foregroundStyle(claudeOrange)
             }
-            Text(q.text + (q.multi ? "  (اختار أكتر من واحدة)" : ""))
+            Text(q.text + (q.multi ? tr("  (اختار أكتر من واحدة)", "  (pick one or more)") : ""))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
                 .lineLimit(2)
@@ -269,20 +270,22 @@ struct QuestionCard: View {
                 ForEach(Array(q.options.enumerated()), id: \.offset) { i, o in option(i, o) }
             }
             HStack(spacing: 8) {
-                pill("التيرمنال", "arrow.up.forward.app", .white.opacity(0.12), .white) {
+                pill(tr("التيرمنال", "Terminal"), "arrow.up.forward.app", .white.opacity(0.12), .white) {
                     m.claude.answer(ask, .terminal)
                 }
                 Spacer(minLength: 0)
                 if page > 0 {
-                    pill("السابق", "chevron.right", .white.opacity(0.12), .white) { page -= 1 }
+                    pill(tr("السابق", "Back"), tr("chevron.right", "chevron.left"), .white.opacity(0.12), .white) { page -= 1 }
                 }
-                pill(isLast ? "ابعت" : "التالي", isLast ? "paperplane.fill" : "chevron.left",
-                     answered ? Color.green : .white.opacity(0.1), answered ? .black : .white.opacity(0.4)) {
+                pill(isLast ? tr("ابعت", "Send") : tr("التالي", "Next"), isLast ? "paperplane.fill" : tr("chevron.left", "chevron.right"),
+                     answered ? Color.green : .white.opacity(0.1), answered ? .black : .white.opacity(0.4),
+                     iconAfter: true) {
                     next()
                 }
                 .disabled(!answered)
             }
         }
+        .langDirection()
         .padding(.horizontal, 20)
         .padding(.bottom, 10)
     }
@@ -336,12 +339,18 @@ struct QuestionCard: View {
         m.claude.answer(ask, .answers(answers))
     }
 
-    private func pill(_ title: String, _ icon: String, _ bg: Color, _ fg: Color,
+    private func pill(_ title: String, _ icon: String, _ bg: Color, _ fg: Color, iconAfter: Bool = false,
                       _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Text(title)
-                Image(systemName: icon)
+                // الكارت معكوس في الإنجليزي، فالترتيب ده بيحط الأيقونة بعد الكلمة
+                if iconAfter && Lang.current == .en {
+                    Image(systemName: icon).fixedDirection()
+                    Text(title)
+                } else {
+                    Text(title)
+                    Image(systemName: icon).fixedDirection()
+                }
             }
             .font(.system(size: 11, weight: .bold, design: .rounded))
             .foregroundStyle(fg)
@@ -378,6 +387,15 @@ struct Artwork: View {
     }
 }
 
+extension View {
+    /// التصميم معمول يمين لشمال بإيدينا جوه LTR؛ في الإنجليزي بنعكسه
+    func langDirection() -> some View {
+        environment(\.layoutDirection, Lang.current == .en ? .rightToLeft : .leftToRight)
+    }
+    /// حاجات ترتيبها ثابت في اللغتين (أزرار التشغيل، شريط التبويبات)
+    func fixedDirection() -> some View { environment(\.layoutDirection, .leftToRight) }
+}
+
 // MARK: - النوتش المفتوح
 
 struct ExpandedContent: View {
@@ -388,7 +406,7 @@ struct ExpandedContent: View {
             RobotFace(m: m, e: m.eyes, s: 84)
                 .contentShape(Rectangle())
                 .onTapGesture { m.poke() }
-                .help("دوس عليا 🤖")
+                .help(tr("دوس عليا 🤖", "Poke me 🤖"))
 
             VStack(alignment: .trailing, spacing: 8) {
                 TabBar(m: m)
@@ -405,6 +423,7 @@ struct ExpandedContent: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             }
+            .langDirection()
         }
         .padding(.horizontal, 30)
         .padding(.top, 8)
@@ -426,12 +445,15 @@ struct TabBar: View {
                         .overlay(alignment: .topTrailing) {
                             if t == .claude, !m.claude.waiting.isEmpty {
                                 Circle().fill(claudeOrange).frame(width: 7, height: 7)
+                            } else if t == .settings, m.updates.latest != nil {
+                                Circle().fill(glow).frame(width: 7, height: 7)
                             }
                         }
                 }
                 .buttonStyle(.plain)
             }
         }
+        .fixedDirection()
         .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
@@ -441,18 +463,22 @@ struct HomeTab: View {
 
     private var greeting: String {
         switch Calendar.current.component(.hour, from: m.now) {
-        case 5..<12: return "صباح الخير ☀️"
-        case 12..<17: return "يومك سعيد 🌤"
-        case 17..<22: return "مساء الخير 🌙"
-        default: return "لسه صاحي؟ 🌌"
+        case 5..<12: return tr("صباح الخير ☀️", "Good morning ☀️")
+        case 12..<17: return tr("يومك سعيد 🌤", "Good afternoon 🌤")
+        case 17..<22: return tr("مساء الخير 🌙", "Good evening 🌙")
+        default: return tr("لسه صاحي؟ 🌌", "Still up? 🌌")
         }
     }
 
-    private static let timeFmt = arabic("h:mm a")
-    private static let dateFmt = arabic("EEEE، d MMMM")
-    private static func arabic(_ f: String) -> DateFormatter {
+    private static let fmts: [Lang: (time: DateFormatter, date: DateFormatter)] = [
+        .ar: (make("h:mm a", "ar_EG"), make("EEEE، d MMMM", "ar_EG")),
+        .en: (make("h:mm a", "en_US"), make("EEEE, MMMM d", "en_US")),
+    ]
+    private static var timeFmt: DateFormatter { fmts[Lang.current]!.time }
+    private static var dateFmt: DateFormatter { fmts[Lang.current]!.date }
+    private static func make(_ f: String, _ locale: String) -> DateFormatter {
         let d = DateFormatter()
-        d.locale = Locale(identifier: "ar_EG")
+        d.locale = Locale(identifier: locale)
         d.dateFormat = f
         return d
     }
@@ -482,7 +508,7 @@ struct HomeTab: View {
                 .foregroundStyle(.white.opacity(0.5))
             HStack(spacing: 10) {
                 if let s = m.claude.sessions.first {
-                    Label(m.claude.sessions.count > 1 ? "\(m.claude.sessions.count) جلسات" : s.project,
+                    Label(m.claude.sessions.count > 1 ? tr("\(m.claude.sessions.count) جلسات", "\(m.claude.sessions.count) sessions") : s.project,
                           systemImage: "sparkle")
                         .foregroundStyle(claudeOrange)
                         .onTapGesture { m.tab = .claude }
@@ -527,8 +553,9 @@ struct MusicTab: View {
                 }
                 if i.duration > 0 {
                     let pos = i.position(at: m.now)
+                    let en = Lang.current == .en
                     HStack(spacing: 6) {
-                        Text(clock(i.duration))
+                        Text(clock(en ? pos : i.duration))
                         GeometryReader { g in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(.white.opacity(0.15))
@@ -536,8 +563,9 @@ struct MusicTab: View {
                             }
                         }
                         .frame(height: 4)
-                        Text(clock(pos))
+                        Text(clock(en ? i.duration : pos))
                     }
+                    .fixedDirection()
                     .font(.system(size: 9, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white.opacity(0.5))
@@ -547,12 +575,13 @@ struct MusicTab: View {
                     control(i.playing ? "pause.fill" : "play.fill", size: 18) { m.media.send(.toggle) }
                     control("forward.fill") { m.media.send(.next) }
                 }
+                .fixedDirection()
                 .frame(maxWidth: .infinity)
             }
         } else {
             VStack(alignment: .trailing, spacing: 6) {
-                Text("مفيش حاجة شغالة 🎧").font(.system(size: 14, weight: .bold, design: .rounded))
-                Text("شغّل أغنية من Spotify أو Music أو YouTube وهتظهر هنا")
+                Text(tr("مفيش حاجة شغالة 🎧", "Nothing playing 🎧")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("شغّل أغنية من Spotify أو Music أو YouTube وهتظهر هنا", "Play something on Spotify, Music, or YouTube and it shows up here"))
                     .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
             }
             .foregroundStyle(.white)
@@ -573,12 +602,19 @@ struct ClaudeTab: View {
     @ObservedObject var m: NotchModel
 
     var body: some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            if m.claude.usage5h != nil || m.claude.usageWeek != nil { UsageRow(m: m) }
+            sessions
+        }
+    }
+
+    @ViewBuilder private var sessions: some View {
         if m.claude.sessions.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
-                Text("مفيش جلسات كلود مفتوحة ✳️").font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("مفيش جلسات كلود مفتوحة ✳️", "No Claude sessions open ✳️")).font(.system(size: 14, weight: .bold, design: .rounded))
                 Text(m.claude.hooksInstalled
-                     ? "افتح claude في التيرمنال وهيظهر هنا"
-                     : "الـ hooks مش متركّبة في ~/.claude/settings.json")
+                     ? tr("افتح claude في التيرمنال وهيظهر هنا", "Run claude in a terminal and it shows up here")
+                     : tr("الـ hooks مش متركّبة في ~/.claude/settings.json", "Hooks aren't installed in ~/.claude/settings.json"))
                     .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
             }
             .foregroundStyle(.white)
@@ -589,10 +625,59 @@ struct ClaudeTab: View {
                     SessionRow(s: s, now: m.now)
                         .contentShape(Rectangle())
                         .onTapGesture { m.claude.focus(s) }
-                        .contextMenu { Button("شيلها من القايمة") { m.claude.remove(s) } }
+                        .contextMenu { Button(tr("شيلها من القايمة", "Remove from list")) { m.claude.remove(s) } }
                 }
             }
         }
+    }
+}
+
+/// استهلاك الحساب كله (مش الجلسة): نافذة الـ 5 ساعات والأسبوع — لمشتركين Pro و Max
+struct UsageRow: View {
+    @ObservedObject var m: NotchModel
+
+    private static let fmts: [Lang: (time: DateFormatter, day: DateFormatter)] = [
+        .ar: (make("h:mm", "ar_EG"), make("EEEE", "ar_EG")),
+        .en: (make("h:mm a", "en_US"), make("EEE", "en_US")),
+    ]
+    private static func make(_ f: String, _ locale: String) -> DateFormatter {
+        let d = DateFormatter()
+        d.locale = Locale(identifier: locale)
+        d.dateFormat = f
+        return d
+    }
+
+    var body: some View {
+        let c = m.claude
+        let f = Self.fmts[Lang.current]!
+        // الأرقام بتتحدّث بس وفيه جلسة شغالة، فلو قديمة بنبهتها
+        let stale = c.usageUpdated.map { m.now.timeIntervalSince($0) > 30 * 60 } ?? true
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
+            if let w = c.usageWeek { meter(tr("الأسبوع", "Week"), w, f.day) }
+            if let w = c.usage5h { meter(tr("5 ساعات", "5h"), w, f.time) }
+        }
+        .opacity(stale ? 0.5 : 1)
+        .help(tr("استهلاك حسابك من الـ status line بتاع كلود كود", "Your account usage, from Claude Code's status line"))
+    }
+
+    private func meter(_ title: String, _ w: UsageWindow, _ fmt: DateFormatter) -> some View {
+        let color: Color = w.percent < 70 ? .green : w.percent < 90 ? .orange : .red
+        return HStack(spacing: 5) {
+            Text("↻ " + fmt.string(from: w.resetsAt)).foregroundStyle(.white.opacity(0.35))
+            Text("\(Int(w.percent.rounded()))%").foregroundStyle(color).monospacedDigit()
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.12))
+                    Capsule().fill(color).frame(width: g.size.width * min(1, w.percent / 100))
+                }
+            }
+            .frame(width: 28, height: 4)
+            .fixedDirection()
+            Text(title).foregroundStyle(.white.opacity(0.7))
+        }
+        .font(.system(size: 10, weight: .semibold, design: .rounded))
+        .lineLimit(1)
     }
 }
 
@@ -602,19 +687,19 @@ struct SessionRow: View {
 
     private var chip: (String, Color) {
         switch s.state {
-        case .working: return ("شغال", claudeOrange)
-        case .waiting: return ("مستنيك", .yellow)
-        case .done: return ("خلص", .green)
-        case .idle: return ("جاهز", .gray)
+        case .working: return (tr("شغال", "Working"), claudeOrange)
+        case .waiting: return (tr("مستنيك", "Waiting"), .yellow)
+        case .done: return (tr("خلص", "Done"), .green)
+        case .idle: return (tr("جاهز", "Ready"), .gray)
         case .failed: return ("error", .red)
         }
     }
 
     private var ago: String {
         let d = Int(now.timeIntervalSince(s.updated))
-        if d < 60 { return "دلوقتي" }
-        if d < 3600 { return "\(d / 60)د" }
-        return "\(d / 3600)س"
+        if d < 60 { return tr("دلوقتي", "now") }
+        if d < 3600 { return tr("\(d / 60)د", "\(d / 60)m") }
+        return tr("\(d / 3600)س", "\(d / 3600)h")
     }
 
     var body: some View {
@@ -623,7 +708,12 @@ struct SessionRow: View {
                 .frame(width: 34, alignment: .leading)
             VStack(alignment: .trailing, spacing: 1) {
                 Text(s.project).font(.system(size: 12, weight: .bold, design: .rounded)).foregroundStyle(.white)
-                Text(s.detail).font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+                if let p = s.progress {
+                    Text("\(p.done)/\(p.total) · \(s.activeTask ?? s.detail)")
+                        .font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+                } else {
+                    Text(s.detail).font(.system(size: 10, design: .rounded)).foregroundStyle(.white.opacity(0.55))
+                }
             }
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .trailing)
@@ -635,7 +725,20 @@ struct SessionRow: View {
         }
         .padding(.horizontal, 10).padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
-        .help("اضغط عشان تروح للتيرمنال")
+        .overlay(alignment: .bottom) {
+            // شريط تقدم المهام في أسفل الكارت
+            if let p = s.progress {
+                GeometryReader { g in
+                    Capsule().fill(claudeOrange)
+                        .frame(width: g.size.width * CGFloat(p.done) / CGFloat(max(p.total, 1)))
+                }
+                .frame(height: 2)
+                .fixedDirection()
+                .padding(.horizontal, 12)
+                .padding(.bottom, 1)
+            }
+        }
+        .help(tr("اضغط عشان تروح للتيرمنال", "Click to jump to the terminal"))
     }
 }
 
@@ -646,8 +749,8 @@ struct ClipboardTab: View {
         let c = m.clipboard
         if c.items.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
-                Text("الكليب بورد فاضي 📋").font(.system(size: 14, weight: .bold, design: .rounded))
-                Text("أي حاجة تعملها copy هتتحفظ هنا (آخر 20)")
+                Text(tr("الكليب بورد فاضي 📋", "Clipboard is empty 📋")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("أي حاجة تعملها copy هتتحفظ هنا (آخر 20)", "Anything you copy is saved here (last 20)"))
                     .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
             }
             .foregroundStyle(.white)
@@ -656,7 +759,7 @@ struct ClipboardTab: View {
             VStack(alignment: .trailing, spacing: 4) {
                 ForEach(c.items.prefix(5)) { item in
                     HStack(spacing: 8) {
-                        Text(c.lastCopied == item.id ? "اتنسخ ✓" : ago(item.date))
+                        Text(c.lastCopied == item.id ? tr("اتنسخ ✓", "Copied ✓") : ago(item.date))
                             .font(.system(size: 9, weight: .medium, design: .rounded))
                             .foregroundStyle(c.lastCopied == item.id ? Color.green : .white.opacity(0.35))
                             .frame(width: 46, alignment: .leading)
@@ -671,10 +774,10 @@ struct ClipboardTab: View {
                     .contentShape(Rectangle())
                     .onTapGesture { c.copy(item) }
                     .contextMenu {
-                        Button("انسخ") { c.copy(item) }
-                        Button("امسح") { c.remove(item) }
+                        Button(tr("انسخ", "Copy")) { c.copy(item) }
+                        Button(tr("امسح", "Delete")) { c.remove(item) }
                         Divider()
-                        Button("امسح الكل") { c.clear() }
+                        Button(tr("امسح الكل", "Clear all")) { c.clear() }
                     }
                     .help(String(item.text.prefix(500)))
                 }
@@ -684,9 +787,9 @@ struct ClipboardTab: View {
 
     private func ago(_ d: Date) -> String {
         let s = Int(m.now.timeIntervalSince(d))
-        if s < 60 { return "دلوقتي" }
-        if s < 3600 { return "\(s / 60)د" }
-        return "\(s / 3600)س"
+        if s < 60 { return tr("دلوقتي", "now") }
+        if s < 3600 { return tr("\(s / 60)د", "\(s / 60)m") }
+        return tr("\(s / 3600)س", "\(s / 3600)h")
     }
 }
 
@@ -697,18 +800,18 @@ struct ShelfTab: View {
         let shelf = m.shelf
         if m.dragging {
             HStack(spacing: 10) {
-                DropZone(icon: "dot.radiowaves.left.and.right", title: "ابعته AirDrop") { urls in
+                DropZone(icon: "dot.radiowaves.left.and.right", title: tr("ابعته AirDrop", "AirDrop it")) { urls in
                     ShelfStore.airDrop(urls)
                 }
-                DropZone(icon: "tray.and.arrow.down.fill", title: "حطه على الرف") { urls in
+                DropZone(icon: "tray.and.arrow.down.fill", title: tr("حطه على الرف", "Put it on the shelf")) { urls in
                     shelf.add(urls)
                 }
             }
             .padding(.top, 4)
         } else if shelf.items.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
-                Text("الرف فاضي 🗂").font(.system(size: 14, weight: .bold, design: .rounded))
-                Text("اسحب أي ملف على النوتش وسيبه هنا، أو ابعته AirDrop على طول")
+                Text(tr("الرف فاضي 🗂", "Shelf is empty 🗂")).font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(tr("اسحب أي ملف على النوتش وسيبه هنا، أو ابعته AirDrop على طول", "Drag any file onto the notch to keep it here, or AirDrop it right away"))
                     .font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.5))
                     .multilineTextAlignment(.trailing)
             }
@@ -717,14 +820,14 @@ struct ShelfTab: View {
         } else {
             VStack(alignment: .trailing, spacing: 6) {
                 HStack(spacing: 12) {
-                    Button { shelf.clear() } label: { Text("مسح") }
+                    Button { shelf.clear() } label: { Text(tr("مسح", "Clear")) }
                         .foregroundStyle(.white.opacity(0.45))
                     Button { ShelfStore.airDrop(shelf.items) } label: {
-                        Label("AirDrop الكل", systemImage: "dot.radiowaves.left.and.right")
+                        Label(tr("AirDrop الكل", "AirDrop all"), systemImage: "dot.radiowaves.left.and.right")
                     }
                     .foregroundStyle(glow)
                     Spacer()
-                    Text("\(shelf.items.count) ملف").foregroundStyle(.white.opacity(0.45))
+                    Text(tr("\(shelf.items.count) ملف", "\(shelf.items.count) files")).foregroundStyle(.white.opacity(0.45))
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -733,11 +836,11 @@ struct ShelfTab: View {
                         Text("+\(shelf.items.count - 4)")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundStyle(.white.opacity(0.5))
-                            .help("الباقي في Finder: كليك يمين ← وريهولي")
+                            .help(tr("الباقي في Finder: كليك يمين ← وريهولي", "The rest: right-click → Show in Finder"))
                     }
                     ForEach(shelf.items.prefix(4).reversed(), id: \.self) { u in ShelfItem(url: u, shelf: shelf) }
                 }
-                Text("اسحب الملف من هنا لأي مكان، أو كليك يمين للاختيارات")
+                Text(tr("اسحب الملف من هنا لأي مكان، أو كليك يمين للاختيارات", "Drag a file out from here, or right-click for options"))
                     .font(.system(size: 9, design: .rounded)).foregroundStyle(.white.opacity(0.3))
             }
         }
@@ -762,11 +865,11 @@ struct ShelfItem: View {
         .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
         .onTapGesture(count: 2) { NSWorkspace.shared.open(url) }
         .contextMenu {
-            Button("افتح") { NSWorkspace.shared.open(url) }
-            Button("وريهولي في Finder") { ShelfStore.reveal([url]) }
-            Button("ابعته AirDrop") { ShelfStore.airDrop([url]) }
+            Button(tr("افتح", "Open")) { NSWorkspace.shared.open(url) }
+            Button(tr("وريهولي في Finder", "Show in Finder")) { ShelfStore.reveal([url]) }
+            Button(tr("ابعته AirDrop", "AirDrop it")) { ShelfStore.airDrop([url]) }
             Divider()
-            Button("شيله من الرف") { shelf.remove(url) }
+            Button(tr("شيله من الرف", "Remove from shelf")) { shelf.remove(url) }
         }
         .help(url.path)
     }
@@ -819,6 +922,7 @@ struct TimerTab: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.white)
                 .buttonStyle(.plain)
+                .fixedDirection()
 
                 Text(clock(m.timerLeft))
                     .font(.system(size: 36, weight: .bold, design: .rounded))
@@ -828,7 +932,7 @@ struct TimerTab: View {
             HStack(spacing: 6) {
                 ForEach([5.0, 15, 25, 50], id: \.self) { min in
                     Button { m.startTimer(minutes: min) } label: {
-                        Text("\(Int(min)) د")
+                        Text(tr("\(Int(min)) د", "\(Int(min)) min"))
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .background(Capsule().fill(m.timerTotal == min * 60 ? glow.opacity(0.25) : Color.white.opacity(0.08)))
@@ -837,7 +941,8 @@ struct TimerTab: View {
                     .buttonStyle(.plain)
                 }
             }
-            Text("بومودورو 🍅 ركّز وأنا هنبهك").font(.system(size: 10, design: .rounded))
+            .fixedDirection()
+            Text(tr("بومودورو 🍅 ركّز وأنا هنبهك", "Pomodoro 🍅 focus and I'll ping you")).font(.system(size: 10, design: .rounded))
                 .foregroundStyle(.white.opacity(0.4))
         }
     }
@@ -848,24 +953,54 @@ struct SettingsTab: View {
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            row("الأصوات", isOn: $m.soundsOn)
+            row(tr("الأصوات", "Sounds"), isOn: $m.soundsOn)
             if m.soundsOn {
                 ForEach(SoundEvent.allCases, id: \.self) { e in soundRow(e) }
             }
-            row("يفتح مع تشغيل الماك", isOn: Binding(get: { m.launchAtLogin }, set: { m.launchAtLogin = $0 }))
+            row(tr("يفتح مع تشغيل الماك", "Open at login"), isOn: Binding(get: { m.launchAtLogin }, set: { m.launchAtLogin = $0 }))
+            HStack(spacing: 4) {
+                langButton(.en, "English")
+                langButton(.ar, "العربي")
+                Spacer(minLength: 0)
+                Text(tr("اللغة", "Language")).font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.6))
+            }
             HStack(spacing: 6) {
-                Text(m.claude.hooksInstalled ? "متوصل بكلود كود" : "مش متوصل بكلود كود")
+                if let v = m.updates.latest {
+                    Button { NSWorkspace.shared.open(UpdateStore.page) } label: {
+                        Label(tr("نزّل v\(v)", "Get v\(v)"), systemImage: "arrow.down.circle.fill")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 8).padding(.vertical, 3)
+                            .background(Capsule().fill(glow))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer(minLength: 0)
+                Text("v\(UpdateStore.current)").foregroundStyle(.white.opacity(0.35))
+                Text("·").foregroundStyle(.white.opacity(0.35))
+                Text(m.claude.hooksInstalled ? tr("متوصل بكلود كود", "Connected to Claude Code") : tr("مش متوصل بكلود كود", "Not connected to Claude Code"))
                 Circle().fill(m.claude.hooksInstalled ? Color.green : .red).frame(width: 7, height: 7)
             }
             .font(.system(size: 11, design: .rounded))
             .foregroundStyle(.white.opacity(0.6))
             Button { NSApp.terminate(nil) } label: {
-                Label("قفل روبو", systemImage: "power")
+                Label(tr("قفل روبو", "Quit Robo"), systemImage: "power")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.red.opacity(0.85))
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private func langButton(_ l: Lang, _ title: String) -> some View {
+        Button { m.lang = l } label: {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(m.lang == l ? Color.black : .white.opacity(0.6))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(m.lang == l ? glow : Color.white.opacity(0.07)))
+        }
+        .buttonStyle(.plain)
     }
 
     /// دوسة = الصوت اللي بعده (وبيشغّله عشان تسمعه)
@@ -879,7 +1014,7 @@ struct SettingsTab: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: cur.isEmpty ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                    Text(cur.isEmpty ? "من غير" : cur)
+                    Text(cur.isEmpty ? tr("من غير", "None") : cur)
                 }
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(cur.isEmpty ? Color.white.opacity(0.4) : glow)
@@ -887,7 +1022,8 @@ struct SettingsTab: View {
                 .background(Capsule().fill(Color.white.opacity(0.07)))
             }
             .buttonStyle(.plain)
-            .help("دوس عشان تغيّر الصوت")
+            .fixedDirection()
+            .help(tr("دوس عشان تغيّر الصوت", "Click to change the sound"))
             Text(e.title).font(.system(size: 11, design: .rounded)).foregroundStyle(.white.opacity(0.6))
         }
     }
@@ -900,6 +1036,7 @@ struct SettingsTab: View {
                 .overlay(alignment: isOn.wrappedValue ? .trailing : .leading) {
                     Circle().fill(.white).frame(width: 13, height: 13).padding(2)
                 }
+                .fixedDirection()
                 .onTapGesture { withAnimation(.spring(response: 0.25)) { isOn.wrappedValue.toggle() } }
             Text(title).font(.system(size: 12, weight: .medium, design: .rounded)).foregroundStyle(.white)
         }

@@ -19,7 +19,7 @@ cat > $APP/Contents/Info.plist <<PLIST
   <key>CFBundleExecutable</key><string>NotchRobot</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleDisplayName</key><string>NotchRobot</string>
-  <key>CFBundleShortVersionString</key><string>2.1</string>
+  <key>CFBundleShortVersionString</key><string>2.2</string>
   <key>CFBundleVersion</key><string>$(date +%Y%m%d%H%M)</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
@@ -33,8 +33,8 @@ codesign --force -s - $APP
 
 # hook بتاع Claude Code في مكان ثابت
 mkdir -p ~/.notchrobot
-cp hook.sh ~/.notchrobot/hook.sh
-chmod +x ~/.notchrobot/hook.sh
+cp hook.sh statusline.sh ~/.notchrobot/
+chmod +x ~/.notchrobot/hook.sh ~/.notchrobot/statusline.sh
 echo "✅ Built $APP"
 
 # ./build.sh install → يتسطّب في /Applications ويشتغل من هناك
