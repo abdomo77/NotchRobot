@@ -78,7 +78,7 @@ final class MediaStore: ObservableObject {
             if info != nil { info = nil }
             return
         }
-        let new = NowPlaying(
+        var new = NowPlaying(
             title: title,
             artist: j["artist"] as? String ?? "",
             bundle: j["bundle"] as? String,
@@ -87,6 +87,11 @@ final class MediaStore: ObservableObject {
             timestamp: (j["timestamp"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) },
             rate: (j["rate"] as? NSNumber)?.doubleValue ?? 0,
             playing: (j["playing"] as? NSNumber)?.boolValue ?? false)
+        // بعد التقديم بشوية، التطبيق ممكن لسه يبعت المكان القديم؛ منرجّعش الشريط لورا
+        if let s = seekedAt, Date().timeIntervalSince(s) < 2, let cur = info, cur.title == new.title {
+            new.elapsed = cur.elapsed
+            new.timestamp = cur.timestamp
+        }
         if new.bundle != info?.bundle { resolveApp(new.bundle) }
         if new.title != info?.title {
             artwork = nil
@@ -202,11 +207,24 @@ final class MediaStore: ObservableObject {
         }.resume()
     }
 
+    private var seekedAt: Date?
+
     enum Command: Int { case toggle = 2, next = 4, previous = 5 }
 
     func send(_ c: Command) {
         guard let dylib else { return }
         try? makeProcess(mode: String(c.rawValue), dylib: dylib).run()
+    }
+
+    /// يودّي الأغنية لثانية معينة. بنحدّث الشريط على طول من غير ما نستنى التطبيق يرد
+    func seek(to seconds: Double) {
+        guard let dylib, var i = info, i.duration > 0 else { return }
+        let t = min(max(0, seconds), i.duration)
+        try? makeProcess(mode: "seek:\(t)", dylib: dylib).run()
+        i.elapsed = t
+        i.timestamp = Date()
+        info = i
+        seekedAt = Date()
     }
 
     private(set) var appName: String?

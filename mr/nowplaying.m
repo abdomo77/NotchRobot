@@ -1,6 +1,7 @@
 // helper بيتحمّل جوه /usr/bin/perl عشان ياخد صلاحية MediaRemote (macOS 15.4+)
 // NOTCHROBOT_MR=stream → يطبع JSON سطر كل ثانية
 // NOTCHROBOT_MR=<رقم>  → يبعت أمر (2 = تشغيل/إيقاف، 4 = اللي بعده، 5 = اللي قبله)
+// NOTCHROBOT_MR=seek:<ثواني> → يودّي الأغنية للثانية دي
 #import <Foundation/Foundation.h>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -8,6 +9,7 @@
 #import <objc/runtime.h>
 
 typedef Boolean (*SendCmdFn)(int, CFDictionaryRef);
+typedef void (*SetElapsedFn)(double);
 
 static NSString *lastArtId = @"";
 
@@ -58,6 +60,13 @@ __attribute__((constructor)) static void run(void) {
     if (!mode) return;
     void *h = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_NOW);
     if (!h) exit(1);
+
+    if (strncmp(mode, "seek:", 5) == 0) {
+        SetElapsedFn seek = (SetElapsedFn)dlsym(h, "MRMediaRemoteSetElapsedTime");
+        if (seek) seek(atof(mode + 5));
+        usleep(100000);
+        exit(0);
+    }
 
     if (strcmp(mode, "stream") != 0) {
         SendCmdFn send = (SendCmdFn)dlsym(h, "MRMediaRemoteSendCommand");

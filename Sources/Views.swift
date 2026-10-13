@@ -579,6 +579,8 @@ struct HomeTab: View {
 
 struct MusicTab: View {
     @ObservedObject var m: NotchModel
+    /// مكان الصباع على الشريط (من 0 لـ 1) وانت بتسحب
+    @State private var scrub: Double?
 
     var body: some View {
         if let i = m.media.info {
@@ -602,17 +604,29 @@ struct MusicTab: View {
                     Artwork(image: m.media.artwork, size: 56, radius: 10)
                 }
                 if i.duration > 0 {
-                    let pos = i.position(at: m.now)
+                    // وانت بتسحب بنعرض مكان صباعك، ولما تسيب بنبعت التقديم
+                    let pos = scrub.map { $0 * i.duration } ?? i.position(at: m.now)
                     let en = Lang.current == .en
                     HStack(spacing: 6) {
                         Text(clock(en ? pos : i.duration))
                         GeometryReader { g in
                             ZStack(alignment: .leading) {
                                 Capsule().fill(.white.opacity(0.15))
-                                Capsule().fill(m.accent).frame(width: g.size.width * min(1, pos / i.duration))
+                                Capsule().fill(scrub == nil ? m.accent : .white)
+                                    .frame(width: g.size.width * min(1, pos / i.duration))
                             }
+                            .frame(height: scrub == nil ? 4 : 8)
+                            .frame(maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .gesture(DragGesture(minimumDistance: 0)
+                                .onChanged { v in scrub = min(max(0, v.location.x / g.size.width), 1) }
+                                .onEnded { v in
+                                    m.media.seek(to: min(max(0, v.location.x / g.size.width), 1) * i.duration)
+                                    scrub = nil
+                                })
+                            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: scrub == nil)
                         }
-                        .frame(height: 4)
+                        .frame(height: 14)
                         Text(clock(en ? i.duration : pos))
                     }
                     .fixedDirection()
