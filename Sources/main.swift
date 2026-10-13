@@ -41,6 +41,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.layout() }
 
+        NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] e in
+            self?.handleSwipe(e)
+            return e
+        }
+
         model.refreshBattery()
         model.media.start()
         model.claude.watch()
@@ -146,6 +151,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let w = NotchModel.maxSize.width + margin * 2
         let h = NotchModel.maxSize.height + margin
         panel.setFrame(NSRect(x: s.frame.midX - w / 2, y: s.frame.maxY - h, width: w, height: h), display: true)
+    }
+
+    private var swipeX: CGFloat = 0
+    private var swiped = false
+
+    /// سحب بصباعين يمين أو شمال والنوتش مفتوح = تقليب التبويبات، تبويب واحد في كل سحبة
+    private func handleSwipe(_ e: NSEvent) {
+        guard e.window === panel, model.expanded, e.hasPreciseScrollingDeltas, e.momentumPhase.isEmpty else { return }
+        if e.phase.contains(.began) { swipeX = 0; swiped = false }
+        if e.phase.contains(.ended) || e.phase.contains(.cancelled) { swipeX = 0; swiped = false; return }
+        guard !swiped, abs(e.scrollingDeltaX) > abs(e.scrollingDeltaY) else { return }
+        // اتجاه الصوابع نفسها، أياً كان إعداد natural scrolling
+        swipeX += e.isDirectionInvertedFromDevice ? e.scrollingDeltaX : -e.scrollingDeltaX
+        guard abs(swipeX) > 40 else { return }
+        swiped = true
+        // الصوابع شمال = اللي بعده، زي تقليب الصفحات
+        model.swipeTab(swipeX < 0 ? 1 : -1)
     }
 
     func notchRect(_ size: CGSize) -> NSRect {

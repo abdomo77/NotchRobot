@@ -91,7 +91,15 @@ final class NotchModel: ObservableObject {
         didSet { if expanded, !oldValue { now = Date() } }
     }
     @Published var fullscreenHidden = false
-    @Published var tab: Tab = .home
+    @Published var tab: Tab = .home {
+        didSet {
+            let all = Tab.allCases
+            let forward = (all.firstIndex(of: tab) ?? 0) > (all.firstIndex(of: oldValue) ?? 0)
+            if forward != tabForward { tabForward = forward }
+        }
+    }
+    /// رايح للتبويب اللي بعده (يمين) ولا اللي قبله، عشان المحتوى يتزحلق من الناحية الصح
+    @Published private(set) var tabForward = true
     @Published var transient: Mood?
     @Published var sleepy = false
     @Published var speech: String?
@@ -141,6 +149,14 @@ final class NotchModel: ObservableObject {
         if !claude.waiting.isEmpty { return .alert }
         if !claude.working.isEmpty { return .thinking }
         return sleepy ? .sleepy : .idle
+    }
+
+    /// سحب بصباعين على التراك باد: التبويب اللي بعده أو اللي قبله (من غير لف)
+    func swipeTab(_ step: Int) {
+        let all = Tab.allCases
+        guard let i = all.firstIndex(of: tab), all.indices.contains(i + step) else { return }
+        tab = all[i + step]
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
     func flash(_ m: Mood, for t: Double = 2.5) {

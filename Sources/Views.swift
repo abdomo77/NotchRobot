@@ -443,7 +443,11 @@ struct ExpandedContent: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                .id(m.tab)
+                .transition(tabTransition)
             }
+            .animation(.island, value: m.tab)
+            .clipped()
             .langDirection()
         }
         .padding(.horizontal, 30)
@@ -453,6 +457,17 @@ struct ExpandedContent: View {
 }
 
 /// زي الـ segmented control في iOS: كبسولة واحدة والمختار جواها أفتح
+extension ExpandedContent {
+    /// المحتوى بيدخل من ناحية التبويب الجديد. الترتيب ثابت شمال ليمين في اللغتين،
+    /// بس العمود معكوس في الإنجليزي فـ leading و trailing بيتبدلوا
+    var tabTransition: AnyTransition {
+        let fromRight = m.tabForward
+        let edge: Edge = fromRight == (Lang.current == .ar) ? .trailing : .leading
+        return .asymmetric(insertion: .move(edge: edge).combined(with: .opacity),
+                           removal: .move(edge: edge == .leading ? .trailing : .leading).combined(with: .opacity))
+    }
+}
+
 struct TabBar: View {
     @ObservedObject var m: NotchModel
     @Namespace private var ns
