@@ -6,7 +6,7 @@ rm -rf $APP
 mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 
 swiftc -O -swift-version 5 Sources/*.swift -o $APP/Contents/MacOS/NotchRobot \
-  -framework SwiftUI -framework IOKit -framework ServiceManagement
+  -framework SwiftUI -framework IOKit -framework ServiceManagement -framework Carbon
 cp icon/AppIcon.icns $APP/Contents/Resources/AppIcon.icns
 clang -dynamiclib -fobjc-arc -O2 -framework Foundation mr/nowplaying.m -o $APP/Contents/Resources/libnowplaying.dylib
 
@@ -19,7 +19,7 @@ cat > $APP/Contents/Info.plist <<PLIST
   <key>CFBundleExecutable</key><string>NotchRobot</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleDisplayName</key><string>NotchRobot</string>
-  <key>CFBundleShortVersionString</key><string>2.4</string>
+  <key>CFBundleShortVersionString</key><string>2.5</string>
   <key>CFBundleVersion</key><string>$(date +%Y%m%d%H%M)</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>

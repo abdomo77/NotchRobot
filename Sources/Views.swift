@@ -45,7 +45,7 @@ struct NotchView: View {
         let shape = IslandShape(radius: min(m.size.height / 2, m.expanded ? 42 : 36))
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                shape.fill(Color.black)
+                background
                 if m.expanded {
                     ExpandedContent(m: m).transition(.island)
                 } else {
@@ -54,14 +54,20 @@ struct NotchView: View {
             }
             .frame(width: m.size.width, height: m.size.height)
             .clipShape(shape)
+            .overlay {
+                if m.skin == .neon {
+                    shape.stroke(glow.opacity(0.9), lineWidth: 1.5).shadow(color: glow, radius: 6)
+                }
+            }
             .onDrop(of: [.fileURL], isTargeted: nil) { providers in
                 ShelfStore.log("drop على النوتش: \(providers.count)")
                 ShelfStore.load(providers) { urls in m.shelf.add(urls) }
                 return true
             }
             // وميض خفيف بلون الأغنية، زي الـ Dynamic Island
-            .shadow(color: m.media.isPlaying ? m.accent.opacity(m.expanded ? 0.18 : 0.28)
-                                             : .black.opacity(m.expanded ? 0.5 : 0),
+            .shadow(color: m.skin == .minimal ? .clear
+                        : m.media.isPlaying ? m.accent.opacity(m.expanded ? 0.18 : 0.28)
+                                            : .black.opacity(m.expanded ? 0.5 : 0),
                     radius: m.media.isPlaying ? 7 : 12, y: m.media.isPlaying ? 1 : 4)
             .animation(.easeInOut(duration: 0.6), value: m.accent)
             Spacer(minLength: 0)
@@ -71,9 +77,106 @@ struct NotchView: View {
         .animation(.island, value: m.size)
         .environment(\.colorScheme, .dark)
     }
+
+    /// الزجاج بيبان بس تحت النوتش الحقيقي؛ الشريط اللي فوقه لازم يفضل أسود عشان الكاميرا متبانش
+    @ViewBuilder private var background: some View {
+        if m.skin == .glass {
+            let solid = m.baseSize.height / (m.baseSize.height + 16)
+            ZStack(alignment: .top) {
+                GlassBackground(radius: min(m.size.height / 2, m.expanded ? 42 : 36))
+                Color.black.opacity(0.35)
+                LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: solid),
+                                       .init(color: .black.opacity(0), location: 1)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: m.baseSize.height + 16)
+            }
+        } else {
+            Color.black
+        }
+    }
 }
 
 // MARK: - النوتش المقفول (Live Activities)
+
+/// دايرة تقدم صغيرة (التايمر، مهام كلود)
+struct ProgressRing: View {
+    let progress: Double
+    let color: Color
+    var size: CGFloat = 11
+    var line: CGFloat = 2
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(color.opacity(0.25), lineWidth: line)
+            Circle().trim(from: 0, to: max(0, min(1, progress)))
+                .stroke(color, style: StrokeStyle(lineWidth: line, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: size, height: size)
+        .animation(.easeOut(duration: 0.4), value: progress)
+    }
+}
+
+/// بطارية بتتملي قدامك: وانت بتوصّل الشاحن بتطلع من الصفر لحد النسبة
+struct BatteryGlyph: View {
+    let level: Int
+    let color: Color
+    let charging: Bool
+    @State private var fill: Double = 0
+
+    var body: some View {
+        HStack(spacing: 1) {
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous).stroke(color.opacity(0.6), lineWidth: 1.2)
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(color)
+                    .frame(width: max(2, 22 * fill))
+                    .padding(2)
+                if charging {
+                    Image(systemName: "bolt.fill").font(.system(size: 8, weight: .black)).foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(width: 26, height: 13)
+            Capsule().fill(color.opacity(0.6)).frame(width: 2, height: 5)
+        }
+        .fixedDirection()
+        .onAppear {
+            fill = charging ? 0 : Double(level) / 100
+            withAnimation(.easeOut(duration: 1.2)) { fill = Double(level) / 100 }
+        }
+    }
+}
+
+/// سطر الـ Live Activity تحت النوتش: أغنية جديدة أو مهمة كلود اللي بعدها
+struct ActivityRow: View {
+    @ObservedObject var m: NotchModel
+    let a: Activity
+    private var song: Bool { a.icon == "music.note" }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if song {
+                EqualizerBars(color: m.accent).frame(width: 20)
+            } else if let p = a.progress {
+                ProgressRing(progress: p, color: a.color, size: 20, line: 2.5)
+            }
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(a.title).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white)
+                Text(a.subtitle).font(.system(size: 10, weight: .medium)).foregroundStyle(Theme.secondary)
+            }
+            .lineLimit(1)
+            if song {
+                Artwork(image: m.media.artwork, size: 30, radius: 7)
+            } else {
+                AppGlyph(icon: a.icon, color: a.color, size: 30)
+            }
+        }
+        .langDirection()
+        .padding(.horizontal, 18)
+        .frame(height: 42)
+    }
+}
 
 struct ClaudeBadge: View {
     @ObservedObject var m: NotchModel
@@ -86,6 +189,9 @@ struct ClaudeBadge: View {
                 AnimatedSymbol(name: "sparkle", color: claudeOrange, motion: .spin)
                 if c.working.count > 1 {
                     Text("\(c.working.count)").foregroundStyle(claudeOrange)
+                } else if let p = c.working[0].progress {
+                    // تقدم قايمة المهام
+                    ProgressRing(progress: Double(p.done) / Double(max(p.total, 1)), color: claudeOrange)
                 }
             } else if c.recentlyDone {
                 AnimatedSymbol(name: "checkmark.circle.fill", color: Theme.green, motion: .still)
@@ -119,19 +225,29 @@ struct CollapsedContent: View {
                 }
                 PeekingEyes(m: m, e: m.eyes)
                     .padding(.top, 2)
+                    // الشكل الهادي: العيون بتظهر بس لما يحصل حاجة
+                    .opacity(m.skin == .minimal && (m.mood == .idle || m.mood == .sleepy) ? 0 : 1)
                     .frame(maxWidth: .infinity)
                 if m.rightWingWidth > 0 {
                     HStack(spacing: 6) {
                         if m.voice.active { VoiceBadge(v: m.voice) }
                         if m.hasClaudeBadge { ClaudeBadge(m: m) }
                         if m.timerActive {
-                            Text(clock(m.timerLeft))
-                                .font(.system(size: 11, weight: .bold))
-                                .monospacedDigit()
-                                .foregroundStyle(m.timerEnd == nil ? Theme.secondary : Theme.orange)
-                                .frame(width: 44)
+                            let c = m.timerEnd == nil ? Theme.secondary : Theme.orange
+                            HStack(spacing: 4) {
+                                ProgressRing(progress: 1 - m.timerLeft / max(m.timerTotal, 1), color: c)
+                                Text(clock(m.timerLeft))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(c)
+                            }
+                            .fixedDirection()
+                            .frame(width: 58)
                         }
                         if m.media.isPlaying { EqualizerBars(color: m.accent).frame(width: 20) }
+                        if m.lowBattery {
+                            AnimatedSymbol(name: "battery.25", color: Theme.red, motion: .pulse, size: 13).frame(width: 26)
+                        }
                     }
                     .frame(width: m.rightWingWidth, alignment: .trailing)
                 }
@@ -150,7 +266,11 @@ struct CollapsedContent: View {
                 VStack(spacing: 3) {
                     HStack(spacing: 6) {
                         Text(b.text).lineLimit(1)
-                        Image(systemName: b.icon)
+                        if let level = b.battery {
+                            BatteryGlyph(level: level, color: b.color, charging: b.icon == "bolt.fill")
+                        } else {
+                            Image(systemName: b.icon)
+                        }
                     }
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(b.color)
@@ -166,9 +286,14 @@ struct CollapsedContent: View {
                 .padding(.horizontal, 20)
                 .transition(.island)
                 .id(b.id)
+            } else if let a = m.activity {
+                ActivityRow(m: m, a: a)
+                    .transition(.island)
+                    .id(a.id)
             }
         }
         .animation(.island, value: m.banner)
+        .animation(.island, value: m.activity)
         .animation(.island, value: m.claude.asks)
     }
 }
@@ -313,20 +438,26 @@ struct QuestionCard: View {
         .langDirection()
         .padding(.horizontal, 18)
         .padding(.bottom, 12)
+        .onReceive(NotificationCenter.default.publisher(for: .demoQuestion)) { n in
+            guard ask.sessionId.hasPrefix("demo-"), let c = n.object as? String else { return }
+            if c == "send" { next() } else if let i = Int(c.dropFirst(5)), q.options.indices.contains(i) { select(i) }
+        }
+    }
+
+    private func select(_ i: Int) {
+        var set = picked[page] ?? []
+        if q.multi {
+            if set.contains(i) { set.remove(i) } else { set.insert(i) }
+        } else {
+            set = [i]
+        }
+        picked[page] = set
     }
 
     /// اختيار واحد: علامة صح في الآخر. أكتر من اختيار: دايرة في الأول (زي وضع التعديل في iOS)
     private func option(_ i: Int, _ o: AskQuestion.Option) -> some View {
         let on = picked[page]?.contains(i) ?? false
-        return Button {
-            var set = picked[page] ?? []
-            if q.multi {
-                if on { set.remove(i) } else { set.insert(i) }
-            } else {
-                set = [i]
-            }
-            picked[page] = set
-        } label: {
+        return Button { select(i) } label: {
             HStack(spacing: 10) {
                 if !q.multi {
                     Image(systemName: "checkmark")
@@ -383,6 +514,11 @@ struct QuestionCard: View {
     }
 }
 
+extension Notification.Name {
+    /// سكريبت الـ demo بيختار في كارت السؤال
+    static let demoQuestion = Notification.Name("NotchRobotDemoQuestion")
+}
+
 extension AskQuestion {
     static let rowHeight: CGFloat = 34
 }
@@ -425,29 +561,40 @@ struct ExpandedContent: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 20) {
-            RobotFace(m: m, e: m.eyes, s: 84)
-                .contentShape(Rectangle())
-                .onTapGesture { m.poke() }
-                .help(tr("دوس عليا 🤖", "Poke me 🤖"))
+            // الشكل الهادي من غير الشخصية، إلا في الترحيب
+            if m.skin != .minimal || m.onboarding != nil {
+                RobotFace(m: m, e: m.eyes, s: 84)
+                    .contentShape(Rectangle())
+                    .onTapGesture { m.poke() }
+                    .help(tr("دوس عليا 🤖", "Poke me 🤖"))
+            }
 
             VStack(alignment: .trailing, spacing: 8) {
-                TabBar(m: m)
-                Group {
-                    switch m.tab {
-                    case .home: HomeTab(m: m)
-                    case .music: MusicTab(m: m)
-                    case .claude: ClaudeTab(m: m)
-                    case .clipboard: ClipboardTab(m: m)
-                    case .shelf: ShelfTab(m: m)
-                    case .timer: TimerTab(m: m)
-                    case .settings: SettingsTab(m: m)
+                if let page = m.onboarding {
+                    OnboardingView(m: m, page: page)
+                        .id(page)
+                        .transition(.opacity.combined(with: .offset(y: 6)))
+                } else {
+                    TabBar(m: m)
+                    Group {
+                        switch m.tab {
+                        case .home: HomeTab(m: m)
+                        case .music: MusicTab(m: m)
+                        case .claude: ClaudeTab(m: m)
+                        case .clipboard: ClipboardTab(m: m)
+                        case .shelf: ShelfTab(m: m)
+                        case .timer: TimerTab(m: m)
+                        case .style: StyleTab(m: m)
+                        case .settings: SettingsTab(m: m)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .id(m.tab)
+                    .transition(tabTransition)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .id(m.tab)
-                .transition(tabTransition)
             }
             .animation(.spring(response: 0.3, dampingFraction: 0.95), value: m.tab)
+            .animation(.spring(response: 0.35, dampingFraction: 0.9), value: m.onboarding)
             .clipped()
             .langDirection()
         }
@@ -811,41 +958,88 @@ struct ClipboardTab: View {
 
     var body: some View {
         let c = m.clipboard
-        if c.items.isEmpty {
+        if c.visible.isEmpty {
             VStack(alignment: .trailing, spacing: 6) {
                 Text(tr("الكليب بورد فاضي 📋", "Clipboard is empty 📋")).font(.system(size: 14, weight: .bold))
-                Text(tr("أي حاجة تعملها copy هتتحفظ هنا (آخر 20)", "Anything you copy is saved here (last 20)"))
+                Text(tr("أي حاجة تعملها copy هتتحفظ هنا (آخر 20)، وتقدر تثبّت اللي بتستخدمه كتير", "Anything you copy shows up here (last 20). Pin the ones you use a lot"))
                     .font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                    .multilineTextAlignment(.trailing)
             }
             .foregroundStyle(.white)
             .padding(.top, 14)
         } else {
             VStack(alignment: .trailing, spacing: 4) {
-                ForEach(c.items.prefix(5)) { item in
-                    HStack(spacing: 8) {
-                        Text(c.lastCopied == item.id ? tr("اتنسخ ✓", "Copied ✓") : ago(item.date))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(c.lastCopied == item.id ? Theme.green : .white.opacity(0.35))
-                            .frame(width: 46, alignment: .leading)
-                        Text(item.preview)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.85))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
-                    .padding(.horizontal, 10).padding(.vertical, 5)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.card))
-                    .contentShape(Rectangle())
-                    .onTapGesture { c.copy(item) }
-                    .contextMenu {
-                        Button(tr("انسخ", "Copy")) { c.copy(item) }
-                        Button(tr("امسح", "Delete")) { c.remove(item) }
-                        Divider()
-                        Button(tr("امسح الكل", "Clear all")) { c.clear() }
-                    }
-                    .help(String(item.text.prefix(500)))
+                ForEach(c.visible) { item in row(item, c) }
+            }
+        }
+    }
+
+    private func row(_ item: ClipItem, _ c: ClipboardStore) -> some View {
+        let pinned = c.isPinned(item)
+        let copied = c.lastCopied == item.id
+        return HStack(spacing: 8) {
+            Group {
+                if copied {
+                    Text(tr("اتنسخ ✓", "Copied ✓")).foregroundStyle(Theme.green)
+                } else if pinned {
+                    Image(systemName: "pin.fill").foregroundStyle(Theme.orange)
+                } else {
+                    Text(ago(item.date)).foregroundStyle(.white.opacity(0.35))
                 }
             }
+            .font(.system(size: 9, weight: .medium))
+            .frame(width: 46, alignment: .leading)
+            if let a = action(item.kind) {
+                Button { c.act(item) } label: {
+                    Text(a)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Theme.blue)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Capsule().fill(Theme.blue.opacity(0.15)))
+                }
+                .buttonStyle(.plain)
+            }
+            Text(item.preview)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            kindMark(item.kind)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.card))
+        .contentShape(Rectangle())
+        .onTapGesture { c.copy(item) }
+        .contextMenu {
+            Button(tr("انسخ", "Copy")) { c.copy(item) }
+            Button(pinned ? tr("شيل التثبيت", "Unpin") : tr("ثبّت", "Pin")) { c.togglePin(item) }
+                .disabled(!pinned && c.pinned.count >= ClipboardStore.maxPins)
+            Button(tr("امسح", "Delete")) { c.remove(item) }
+            Divider()
+            Button(tr("امسح الكل (المثبّت بيفضل)", "Clear all (keeps pinned)")) { c.clear() }
+        }
+        .help(String(item.text.prefix(500)))
+    }
+
+    /// زرار صغير على حسب النوع
+    private func action(_ k: ClipKind) -> String? {
+        switch k {
+        case .text: return nil
+        case .link: return tr("افتح", "Open")
+        case .email: return tr("ابعت", "Mail")
+        case .color: return "rgb()"
+        case .json: return tr("رتّب", "Format")
+        case .path: return "Finder"
+        }
+    }
+
+    @ViewBuilder private func kindMark(_ k: ClipKind) -> some View {
+        switch k {
+        case .text: EmptyView()
+        case let .color(col, _):
+            Circle().fill(col).overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1)).frame(width: 12, height: 12)
+        default:
+            Image(systemName: k.icon).font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.secondary)
         }
     }
 
@@ -878,6 +1072,7 @@ struct ShelfTab: View {
                 Text(tr("اسحب أي ملف على النوتش وسيبه هنا، أو ابعته AirDrop على طول", "Drag any file onto the notch to keep it here, or AirDrop it right away"))
                     .font(.system(size: 11)).foregroundStyle(Theme.secondary)
                     .multilineTextAlignment(.trailing)
+                ScreenshotButton(m: m).padding(.top, 4)
             }
             .foregroundStyle(.white)
             .padding(.top, 14)
@@ -890,6 +1085,7 @@ struct ShelfTab: View {
                         Label(tr("AirDrop الكل", "AirDrop all"), systemImage: "dot.radiowaves.left.and.right")
                     }
                     .foregroundStyle(Theme.blue)
+                    ScreenshotButton(m: m)
                     Spacer()
                     Text(tr("\(shelf.items.count) ملف", "\(shelf.items.count) files")).foregroundStyle(Theme.tertiary)
                 }
@@ -908,6 +1104,40 @@ struct ShelfTab: View {
                     .font(.system(size: 9)).foregroundStyle(Theme.tertiary)
             }
         }
+    }
+}
+
+/// سكرين شوت لحتة من الشاشة وتتحط على الرف
+struct ScreenshotButton: View {
+    @ObservedObject var m: NotchModel
+    var body: some View {
+        Button { m.screenshot() } label: {
+            HStack(spacing: 5) {
+                KeyCaps(keys: Hotkeys.screenshotKeys)
+                Label(tr("سكرين شوت", "Screenshot"), systemImage: "camera.viewfinder")
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Theme.blue)
+        }
+        .buttonStyle(.plain)
+        .help(tr("حدد حتة من الشاشة (Space = شباك كامل)، وهتتحط هنا وتتنسخ", "Select part of the screen (Space = whole window); it lands here and on the clipboard"))
+    }
+}
+
+/// اختصار كيبورد مرسوم أزرار صغيرة
+struct KeyCaps: View {
+    let keys: [String]
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(keys, id: \.self) { k in
+                Text(k)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .frame(minWidth: 14, minHeight: 14)
+                    .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Theme.fill))
+            }
+        }
+        .fixedDirection()
     }
 }
 
@@ -1026,6 +1256,7 @@ struct SettingsTab: View {
                 ForEach(SoundEvent.allCases, id: \.self) { e in soundRow(e) }
             }
             row(tr("يفتح مع تشغيل الماك", "Open at login"), isOn: Binding(get: { m.launchAtLogin }, set: { m.launchAtLogin = $0 }))
+            row(tr("يحدّث نفسه لوحده", "Update automatically"), isOn: Binding(get: { m.updates.auto }, set: { m.updates.auto = $0 }))
             HStack(spacing: 4) {
                 HStack(spacing: 0) {
                     langButton(.en, "English")
@@ -1038,16 +1269,7 @@ struct SettingsTab: View {
                 Text(tr("اللغة", "Language")).font(.system(size: 11)).foregroundStyle(Theme.secondary)
             }
             HStack(spacing: 6) {
-                if let v = m.updates.latest {
-                    Button { NSWorkspace.shared.open(UpdateStore.page) } label: {
-                        Label(tr("نزّل v\(v)", "Get v\(v)"), systemImage: "arrow.down.circle.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Capsule().fill(Theme.blue))
-                    }
-                    .buttonStyle(.plain)
-                }
+                if let v = m.updates.latest { updateButton(v) }
                 Spacer(minLength: 0)
                 Text("v\(UpdateStore.current)").foregroundStyle(Theme.tertiary)
                 Text("·").foregroundStyle(Theme.tertiary)
@@ -1062,6 +1284,30 @@ struct SettingsTab: View {
                     .foregroundStyle(Theme.red)
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder private func updateButton(_ v: String) -> some View {
+        switch m.updates.phase {
+        case let .downloading(f):
+            HStack(spacing: 5) {
+                ProgressRing(progress: f, color: Theme.blue)
+                Text(tr("بينزّل v\(v)", "Downloading v\(v)"))
+            }
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Theme.blue)
+        case .ready:
+            Text(tr("بيتسطّب…", "Installing…")).font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.blue)
+        case .idle, .failed:
+            Button { m.updates.install() } label: {
+                Label(tr("حدّث لـ v\(v)", "Update to v\(v)"), systemImage: "arrow.down.circle.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(Theme.blue))
+            }
+            .buttonStyle(.plain)
+            .help(tr("بينزّله من GitHub ويركّبه مكان النسخة دي ويفتحه تاني", "Downloads it from GitHub, replaces this copy, and reopens"))
         }
     }
 
@@ -1118,3 +1364,242 @@ struct SettingsTab: View {
     }
 }
 
+
+// MARK: - الشكل
+
+/// كبسولة اختيارات زي الـ segmented control
+struct Chips<T: Hashable>: View {
+    let items: [T]
+    let selected: T
+    let title: (T) -> String
+    let pick: (T) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items, id: \.self) { i in
+                Button { pick(i) } label: {
+                    Text(title(i))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(i == selected ? Color.white : Theme.secondary)
+                        .padding(.horizontal, 9).padding(.vertical, 3)
+                        .background(Capsule().fill(i == selected ? Theme.selected : .clear))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(Theme.fill))
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selected)
+    }
+}
+
+/// الشخصية والشكل واللون (في تبويب الشكل وفي الترحيب)
+struct StylePickers: View {
+    @ObservedObject var m: NotchModel
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 9) {
+            line(tr("الشخصية", "Character")) {
+                Chips(items: Buddy.allCases, selected: m.buddy, title: \.title) { b in m.buddy = b; m.flash(.happy, for: 1.2) }
+            }
+            line(tr("النوتش", "Notch")) {
+                Chips(items: Skin.allCases, selected: m.skin, title: \.title) { m.skin = $0 }
+            }
+            line(tr("اللون", "Color")) {
+                HStack(spacing: 7) {
+                    ForEach(Accent.allCases, id: \.self) { a in
+                        Button { m.accentChoice = a } label: {
+                            Circle().fill(a.color)
+                                .frame(width: 15, height: 15)
+                                .padding(2.5)
+                                .overlay(Circle().stroke(.white, lineWidth: m.accentChoice == a ? 1.5 : 0))
+                                .shadow(color: a.color.opacity(0.6), radius: m.accentChoice == a ? 4 : 0)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .animation(.spring(response: 0.25), value: m.accentChoice)
+            }
+        }
+    }
+
+    private func line<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        HStack(spacing: 6) {
+            content().fixedDirection()
+            Spacer(minLength: 0)
+            Text(title).font(.system(size: 11)).foregroundStyle(Theme.secondary)
+        }
+    }
+}
+
+struct StyleTab: View {
+    @ObservedObject var m: NotchModel
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 12) {
+            StylePickers(m: m)
+            Button { m.startOnboarding() } label: {
+                Label(tr("اعرض الترحيب تاني", "Show the welcome again"), systemImage: "hand.wave.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Theme.blue)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+// MARK: - الترحيب
+
+/// أول مرة تفتح التطبيق: أربع صفحات بتعرّفك على روبو وتختار شكله وتجهّز الحاجات اللي محتاجة إذن
+struct OnboardingView: View {
+    @ObservedObject var m: NotchModel
+    let page: Int
+    static let pages = 4
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            Group {
+                switch page {
+                case 0: welcome
+                case 1: features
+                case 2: style
+                default: setup
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            nav
+        }
+    }
+
+    private func title(_ t: String, _ sub: String) -> some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            Text(t).font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+            Text(sub).font(.system(size: 11)).foregroundStyle(Theme.secondary)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var welcome: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            title(tr("أهلاً! أنا روبو 👋", "Hi! I'm Robo 👋"),
+                  tr("بعيش في النوتش بتاعتك. قرّب الماوس فوق وهتفتح، وابعد وهتقفل.",
+                     "I live in your notch. Move the mouse up there to open me, move away to close."))
+            hint("hand.draw.fill", tr("اسحب بصباعين يمين وشمال عشان تقلّب التبويبات", "Swipe with two fingers to switch tabs"))
+            hint("tray.and.arrow.down.fill", tr("اسحب أي ملف على النوتش وهيتحط على الرف", "Drag any file onto the notch to shelve it"))
+        }
+    }
+
+    private var features: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            title(tr("بعمل إيه؟", "What I do"), tr("كل حاجة في مكان واحد فوق", "Everything in one place, up top"))
+            Grid(horizontalSpacing: 14, verticalSpacing: 7) {
+                GridRow {
+                    feature("music.note", glow, tr("المزيكا", "Music"))
+                    feature("sparkle", claudeOrange, tr("كلود كود", "Claude Code"))
+                }
+                GridRow {
+                    feature("tray.fill", Theme.blue, tr("الرف و AirDrop", "Shelf & AirDrop"))
+                    feature("doc.on.clipboard", Theme.green, tr("كليب بورد ذكي", "Smart clipboard"))
+                }
+                GridRow {
+                    feature("battery.75", Theme.green, tr("البطارية", "Battery"))
+                    feature("timer", Theme.orange, tr("بومودورو", "Pomodoro"))
+                }
+            }
+        }
+    }
+
+    private var style: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            title(tr("اختار شكلي 🎨", "Pick my look 🎨"), tr("تقدر تغيّره بعدين من تبويب الشكل", "You can change it later in the style tab"))
+            StylePickers(m: m)
+        }
+    }
+
+    private var setup: some View {
+        VStack(alignment: .trailing, spacing: 8) {
+            title(tr("آخر حاجة ⚙️", "One last thing ⚙️"), tr("دي الحاجات اللي ممكن تحتاج إذن", "These might need your permission"))
+            hint("camera.viewfinder", tr("سكرين شوت على الرف. أول مرة الماك هيطلب إذن Screen Recording",
+                                         "Screenshot to the shelf. macOS asks for Screen Recording the first time"),
+                 keys: Hotkeys.screenshotKeys)
+            hint(m.claude.hooksInstalled ? "checkmark.circle.fill" : "sparkle",
+                 m.claude.hooksInstalled ? tr("متوصل بكلود كود ✓", "Connected to Claude Code ✓")
+                                         : tr("شغّل ./install-hooks.sh عشان توصّلني بكلود كود", "Run ./install-hooks.sh to connect me to Claude Code"),
+                 color: m.claude.hooksInstalled ? Theme.green : claudeOrange)
+            HStack(spacing: 7) {
+                Spacer(minLength: 0)
+                Capsule()
+                    .fill(m.launchAtLogin ? Theme.green : Theme.track)
+                    .frame(width: 30, height: 18)
+                    .overlay(alignment: m.launchAtLogin ? .trailing : .leading) {
+                        Circle().fill(.white).frame(width: 14, height: 14).padding(2)
+                    }
+                    .fixedDirection()
+                    .onTapGesture { withAnimation(.spring(response: 0.25)) { m.launchAtLogin.toggle() } }
+                Text(tr("افتح معاك لما الماك يشتغل", "Open me at login")).font(.system(size: 11)).foregroundStyle(.white)
+                Image(systemName: "power").font(.system(size: 11, weight: .semibold)).foregroundStyle(glow).frame(width: 16)
+            }
+        }
+    }
+
+    private func hint(_ icon: String, _ text: String, color: Color = glow, keys: [String]? = nil) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(text).font(.system(size: 11)).foregroundStyle(.white.opacity(0.85))
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let keys { KeyCaps(keys: keys) }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(color).frame(width: 16)
+        }
+    }
+
+    private func feature(_ icon: String, _ color: Color, _ text: String) -> some View {
+        HStack(spacing: 7) {
+            Text(text).font(.system(size: 11, weight: .medium)).foregroundStyle(.white).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            AppGlyph(icon: icon, color: color, size: 22)
+        }
+    }
+
+    private var nav: some View {
+        let last = page == Self.pages - 1
+        return HStack(spacing: 8) {
+            if !last {
+                Button { m.finishOnboarding() } label: {
+                    Text(tr("تخطّي", "Skip")).font(.system(size: 11, weight: .medium)).foregroundStyle(Theme.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer(minLength: 0)
+            HStack(spacing: 5) {
+                ForEach(0..<Self.pages, id: \.self) { i in
+                    Capsule().fill(i == page ? Color.white : Theme.tertiary)
+                        .frame(width: i == page ? 14 : 5, height: 5)
+                }
+            }
+            .fixedDirection()
+            .animation(.spring(response: 0.3), value: page)
+            Spacer(minLength: 0)
+            if page > 0 {
+                pill(tr("السابق", "Back"), primary: false) { m.onboarding = page - 1 }
+            }
+            pill(last ? tr("يلا بينا 🚀", "Let's go 🚀") : tr("التالي", "Next"), primary: true) {
+                if last { m.finishOnboarding() } else { m.onboarding = page + 1 }
+            }
+        }
+    }
+
+    private func pill(_ t: String, primary: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(t)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14).padding(.vertical, 5)
+                .background(Capsule().fill(primary ? Theme.blue : Theme.fill))
+        }
+        .buttonStyle(.plain)
+    }
+}

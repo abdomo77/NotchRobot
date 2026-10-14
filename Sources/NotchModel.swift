@@ -7,7 +7,7 @@ import SwiftUI
 enum Mood { case idle, happy, sleepy, surprised, thinking, alert, listening }
 
 enum Tab: CaseIterable {
-    case home, music, claude, clipboard, shelf, timer, settings
+    case home, music, claude, clipboard, shelf, timer, style, settings
     var icon: String {
         switch self {
         case .home: return "house.fill"
@@ -16,6 +16,7 @@ enum Tab: CaseIterable {
         case .clipboard: return "doc.on.clipboard"
         case .shelf: return "tray.fill"
         case .timer: return "timer"
+        case .style: return "paintbrush.fill"
         case .settings: return "gearshape.fill"
         }
     }
@@ -27,6 +28,20 @@ struct Banner: Equatable {
     let text: String
     let color: Color
     var detail: String? = nil
+    /// بدل الأيقونة: بطارية بتتملي (للشحن والبطارية الضعيفة)
+    var battery: Int? = nil
+}
+
+/// Live Activity: سطر صغير تحت النوتش المقفول لثواني (أغنية جديدة، مهمة كلود اللي بعدها…)
+struct Activity: Equatable {
+    let id = UUID()
+    let icon: String
+    let title: String
+    let subtitle: String
+    let color: Color
+    var artwork: NSImage? = nil
+    /// من 0 لـ 1، بيترسم دايرة جنب الكلام
+    var progress: Double? = nil
 }
 
 /// صوت مختلف لكل حالة من حالات كلود، وتقدر تغيّره من الإعدادات
@@ -51,7 +66,6 @@ enum SoundEvent: String, CaseIterable {
                           "Submarine", "Blow", "Bottle", "Frog", "Morse", "Sosumi", ""]
 }
 
-let glow = Color(red: 0.31, green: 0.96, blue: 1.0)
 let claudeOrange = Color(red: 0.85, green: 0.47, blue: 0.34)
 
 /// ألوان iOS في الوضع الغامق (زي الـ Dynamic Island وقوايم الإعدادات)
@@ -84,6 +98,7 @@ final class NotchModel: ObservableObject {
     let shelf = ShelfStore()
     let voice = VoiceStore()
     let updates = UpdateStore()
+    let hotkeys = Hotkeys()
     private var bag = Set<AnyCancellable>()
 
     @Published var expanded = false {
@@ -91,6 +106,10 @@ final class NotchModel: ObservableObject {
         didSet { if expanded, !oldValue { now = Date() } }
     }
     @Published var fullscreenHidden = false
+    /// سكريبت الـ demo ماسك النوتش: الماوس مبيفتحوش ولا يقفله
+    var demoHold = false
+    /// صفحة الترحيب اللي ظاهرة (أول مرة بس)
+    @Published var onboarding: Int?
     @Published var tab: Tab = .home {
         didSet {
             let all = Tab.allCases
@@ -104,6 +123,7 @@ final class NotchModel: ObservableObject {
     @Published var sleepy = false
     @Published var speech: String?
     @Published var banner: Banner?
+    @Published var activity: Activity?
     @Published var now = Date()
     @Published var battery: Int?
     @Published var charging = false
@@ -123,6 +143,16 @@ final class NotchModel: ObservableObject {
         didSet { UserDefaults.standard.set(soundsOn, forKey: "soundsOn") }
     }
 
+    @Published var skin = Appearance.skin {
+        didSet { Appearance.skin = skin; UserDefaults.standard.set(skin.rawValue, forKey: "skin") }
+    }
+    @Published var buddy = Appearance.buddy {
+        didSet { Appearance.buddy = buddy; UserDefaults.standard.set(buddy.rawValue, forKey: "buddy") }
+    }
+    @Published var accentChoice = Appearance.accent {
+        didSet { Appearance.accent = accentChoice; UserDefaults.standard.set(accentChoice.rawValue, forKey: "accent") }
+    }
+
     var baseSize = CGSize(width: 190, height: 32)
     static let maxSize = CGSize(width: 480, height: 300)
 
@@ -139,6 +169,11 @@ final class NotchModel: ObservableObject {
         claude.onTransition = { [weak self] s in self?.claudeChanged(s) }
         claude.onError = { [weak self] s, fatal in self?.claudeFailed(s, fatal: fatal) }
         claude.onUsageAlert = { [weak self] a in self?.usageAlert(a) }
+        updates.onReady = { [weak self] v in self?.updateReady(v) }
+        updates.onFail = { [weak self] t in self?.updateFailed(t) }
+        hotkeys.onScreenshot = { [weak self] in self?.screenshot() }
+        media.$info.sink { [weak self] i in self?.songChanged(i) }.store(in: &bag)
+        claude.$sessions.sink { [weak self] s in self?.tasksChanged(s) }.store(in: &bag)
     }
 
     // MARK: المزاج
@@ -177,8 +212,9 @@ final class NotchModel: ObservableObject {
         var items: [CGFloat] = []
         if voice.active { items.append(30) }
         if hasClaudeBadge { items.append(34) }
-        if timerActive { items.append(44) }
+        if timerActive { items.append(58) }
         if media.isPlaying { items.append(20) }
+        if lowBattery { items.append(26) }
         guard !items.isEmpty else { return 0 }
         return items.reduce(0, +) + CGFloat(items.count - 1) * 6 + 10
     }
@@ -197,15 +233,18 @@ final class NotchModel: ObservableObject {
             return CGSize(width: max(w, banner.detail == nil ? 380 : 440),
                           height: baseSize.height + (banner.detail == nil ? 34 : 58))
         }
+        if activity != nil { return CGSize(width: max(w, 400), height: baseSize.height + 46) }
         return CGSize(width: w, height: baseSize.height)
     }
 
     var expandedSize: CGSize {
+        if onboarding != nil { return CGSize(width: 480, height: 230) }
         if tab == .clipboard {
-            let rows = CGFloat(min(max(clipboard.items.count, 1), 5))
-            return CGSize(width: 480, height: max(180, 84 + rows * 34))
+            let rows = CGFloat(min(max(clipboard.visible.count, 1), ClipboardStore.shown))
+            return CGSize(width: 480, height: max(180, 84 + rows * 32))
         }
-        if tab == .settings { return CGSize(width: 480, height: soundsOn ? 262 : 196) }
+        if tab == .settings { return CGSize(width: 480, height: soundsOn ? 290 : 224) }
+        if tab == .style { return CGSize(width: 480, height: 230) }
         if tab == .claude {
             let rows = CGFloat(min(max(claude.sessions.count, 1), 4))
             let usage: CGFloat = claude.usage5h != nil || claude.usageWeek != nil ? 26 : 0
@@ -218,7 +257,7 @@ final class NotchModel: ObservableObject {
 
     /// لون مأخوذ من صورة الأغنية (زي الـ Dynamic Island)، وإلا السماوي بتاع روبو
     /// حاجة لازم تبان حتى في الـ fullscreen
-    var needsAttention: Bool { banner != nil || !claude.asks.isEmpty || voice.active }
+    var needsAttention: Bool { banner != nil || !claude.asks.isEmpty || voice.active || onboarding != nil }
 
     var accent: Color { media.isPlaying || tab == .music ? media.accent ?? glow : glow }
 
@@ -311,13 +350,98 @@ final class NotchModel: ObservableObject {
         }
     }
 
-    /// إصدار جديد على GitHub: نقولك مرة واحدة بس لكل إصدار
+    /// إصدار جديد على GitHub: لو التحديث التلقائي شغال بننزّله، وإلا نقولك مرة واحدة بس لكل إصدار
     private func updateAvailable(_ v: String) {
+        if updates.auto { updates.install(); return }
         let key = "notifiedVersion"
         guard UserDefaults.standard.string(forKey: key) != v else { return }
         UserDefaults.standard.set(v, forKey: key)
         show(Banner(icon: "arrow.down.circle.fill", text: tr("فيه إصدار جديد v\(v) — من الإعدادات", "NotchRobot v\(v) is out — see Settings"),
                     color: glow), seconds: 6)
+    }
+
+    /// التحديث نزل واتفك: نستنى لو كلود مستني رد منك (الرد هيضيع لو قفلنا)، وبعدين نقفل ونفتح الجديد
+    private func updateReady(_ v: String) {
+        guard claude.asks.isEmpty, onboarding == nil else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in self?.updateReady(v) }
+            return
+        }
+        flash(.happy, for: 2)
+        show(Banner(icon: "arrow.down.circle.fill", text: tr("بتحدّث لـ v\(v)… راجع في ثانية", "Updating to v\(v)… back in a second"),
+                    color: glow), seconds: 3)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.updates.relaunch() }
+    }
+
+    private func updateFailed(_ why: String) {
+        show(Banner(icon: "exclamationmark.triangle.fill", text: tr("التحديث منفعش", "Update failed"), color: Theme.orange,
+                    detail: why), seconds: 6)
+    }
+
+    // MARK: Live Activities
+
+    func showActivity(_ a: Activity, seconds: Double = 3.5) {
+        // الكروت والتنبيهات أهم، والمفتوح مش محتاجها
+        guard !expanded, claude.asks.isEmpty, banner == nil, onboarding == nil else { return }
+        activity = a
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) { [weak self] in
+            if self?.activity?.id == a.id { self?.activity = nil }
+        }
+    }
+
+    private var lastSong: String?
+
+    /// أغنية جديدة اشتغلت: الجزيرة بتتمد وتعرض اسمها، زي الآيفون
+    private func songChanged(_ i: NowPlaying?) {
+        guard let i, i.playing else { return }
+        defer { lastSong = i.title }
+        guard let last = lastSong, last != i.title else { return }
+        showActivity(Activity(icon: "music.note", title: i.title, subtitle: i.artist, color: glow))
+    }
+
+    private var lastTasks: [String: String]?
+
+    /// كلود بدأ مهمة جديدة من قايمته
+    private func tasksChanged(_ sessions: [ClaudeSession]) {
+        var now: [String: String] = [:]
+        for s in sessions { if let t = s.activeTask { now[s.id] = t } }
+        defer { lastTasks = now }
+        guard let last = lastTasks else { return }
+        for s in sessions {
+            guard let t = now[s.id], last[s.id] != t, let p = s.progress else { continue }
+            showActivity(Activity(icon: "sparkle", title: t, subtitle: "\(s.project) · \(p.done)/\(p.total)",
+                                  color: claudeOrange, progress: Double(p.done) / Double(max(p.total, 1))))
+            return
+        }
+    }
+
+    // MARK: سكرين شوت
+
+    /// ⌃⌥S أو زرار الرف: تحدد حتة من الشاشة، فتتحفظ على الرف وتتنسخ
+    func screenshot() {
+        expanded = false
+        Screenshot.take { [weak self] url in
+            guard let self else { return }
+            self.shelf.add([url])
+            self.flash(.happy, for: 1.5)
+            self.show(Banner(icon: "camera.viewfinder", text: tr("اتصورت 📸 على الرف ومنسوخة", "Captured 📸 on the shelf and copied"),
+                             color: glow), sound: "Pop", seconds: 3)
+        }
+    }
+
+    // MARK: الترحيب
+
+    func startOnboarding() {
+        banner = nil
+        activity = nil
+        onboarding = 0
+        expanded = true
+    }
+
+    func finishOnboarding() {
+        UserDefaults.standard.set(true, forKey: "onboarded")
+        onboarding = nil
+        expanded = false
+        flash(.happy, for: 2)
     }
 
     private func claudeFailed(_ s: ClaudeSession, fatal: Bool) {
@@ -357,6 +481,22 @@ final class NotchModel: ObservableObject {
 
     // MARK: البطارية
 
+    /// 10% أو أقل ومش متوصل: بتفضل ظاهرة جنب النوتش
+    var lowBattery: Bool { (battery ?? 100) <= 10 && !charging }
+    /// آخر حد نبّهنا عنده في المرة دي (20 ثم 10)، وبيرجع لما توصّل الشاحن
+    private var lowWarned = 100
+    private var fullNotified = false
+
+    /// النظام بيقولنا أول ما الشاحن يتوصل أو النسبة تتغير، فالأنيميشن بيبان على طول
+    func watchBattery() {
+        let me = Unmanaged.passUnretained(self).toOpaque()
+        guard let src = IOPSNotificationCreateRunLoopSource({ ctx in
+            guard let ctx else { return }
+            Unmanaged<NotchModel>.fromOpaque(ctx).takeUnretainedValue().refreshBattery()
+        }, me)?.takeRetainedValue() else { return }
+        CFRunLoopAddSource(CFRunLoopGetMain(), src, .defaultMode)
+    }
+
     func refreshBattery() {
         guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
               let list = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else { return }
@@ -365,15 +505,38 @@ final class NotchModel: ObservableObject {
                   let cap = d[kIOPSCurrentCapacityKey] as? Int,
                   let max = d[kIOPSMaxCapacityKey] as? Int, max > 0 else { continue }
             let pct = cap * 100 / max
-            let isCharging = (d[kIOPSIsChargingKey] as? Bool) ?? false
-            if isCharging && !charging && battery != nil {
-                show(Banner(icon: "bolt.fill", text: tr("بيشحن — \(pct)%", "Charging — \(pct)%"), color: .green), sound: "Pop", seconds: 3)
-                flash(.happy)
-            }
-            battery = pct
-            charging = isCharging
+            // متوصل بالشاحن، حتى لو الماك وقّف الشحن عند 80% عشان صحة البطارية
+            let plugged = (d[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
+            batteryChanged(pct, plugged: plugged)
             return
         }
+    }
+
+    private func batteryChanged(_ pct: Int, plugged: Bool) {
+        // أول قراية بعد ما التطبيق يفتح مش "توصيل شاحن"، بس البطارية الضعيفة لازم نقول عليها
+        let first = battery == nil
+        defer { battery = pct; charging = plugged }
+        if plugged && !charging && !first {
+            lowWarned = 100
+            flash(.happy)
+            show(Banner(icon: "bolt.fill", text: tr("بيشحن — \(pct)%", "Charging — \(pct)%"), color: Theme.green, battery: pct),
+                 sound: "Pop", seconds: 3)
+        }
+        if !plugged { fullNotified = false }
+        if plugged, pct >= 100, !fullNotified {
+            fullNotified = true
+            if !first { show(Banner(icon: "bolt.fill", text: tr("اتشحن على الآخر 🔋", "Fully charged 🔋"), color: Theme.green,
+                        detail: tr("تقدر تفصل الشاحن", "You can unplug the charger"), battery: 100), seconds: 4) }
+        }
+        guard !plugged else { return }
+        if pct > 20 { lowWarned = 100; return }
+        let level = pct <= 10 ? 10 : 20
+        guard level < lowWarned else { return }
+        lowWarned = level
+        flash(.sleepy, for: 3)
+        show(Banner(icon: "battery.25", text: tr("البطارية قربت تخلص — \(pct)%", "Battery low — \(pct)%"), color: Theme.red,
+                    detail: tr("وصّل الشاحن 🔌", "Plug in the charger 🔌"), battery: pct),
+             sound: "Funk", seconds: 6)
     }
 
     // MARK: التايمر

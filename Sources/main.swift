@@ -41,12 +41,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
                                                object: nil, queue: .main) { [weak self] _ in self?.layout() }
 
+        DistributedNotificationCenter.default().addObserver(forName: .init("com.gendy.notchrobot.demo"),
+                                                            object: nil, queue: .main) { [weak self] n in
+            self?.demo(n.object as? String ?? "")
+        }
+
         NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] e in
             self?.handleSwipe(e)
             return e
         }
 
         model.refreshBattery()
+        model.watchBattery()
+        model.hotkeys.register()
         model.media.start()
         model.claude.watch()
         model.voice.watch()
@@ -70,6 +77,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         startMouseMonitors()
         scheduleTick()
+
+        // أول مرة خالص: صفحات الترحيب. اللي كان مسطّبه قبل كده منزعجوش بيها
+        if UserDefaults.standard.object(forKey: "onboarded") == nil {
+            if firstRun {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.model.startOnboarding() }
+            } else {
+                UserDefaults.standard.set(true, forKey: "onboarded")
+            }
+        }
 
         // NOTCHROBOT_DUMP=<file.png>: يصوّر النوتش الحقيقي (بالـ layers) ويقفل — للمراجعة
         if let out = ProcessInfo.processInfo.environment["NOTCHROBOT_DUMP"] {
@@ -153,6 +169,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.setFrame(NSRect(x: s.frame.midX - w / 2, y: s.frame.maxY - h, width: w, height: h), display: true)
     }
 
+    /// أوامر scripts/demo.sh لتصوير فيديو. بتلمس بس الطلبات اللي جلستها بتبدأ بـ demo-
+    private func demo(_ cmd: String) {
+        let parts = cmd.split(separator: ":", maxSplits: 1).map(String.init)
+        let arg = parts.count > 1 ? parts[1] : ""
+        switch parts.first ?? "" {
+        case "hold": model.demoHold = true
+        case "release": model.demoHold = false
+        case "expand": model.banner = nil; model.expanded = true
+        case "collapse": model.expanded = false
+        case "tab": if let t = Tab.allCases.first(where: { "\($0)" == arg }) { model.tab = t }
+        case "poll": model.claude.poll(); model.claude.readUsage()
+        case "allow":
+            if let a = model.claude.asks.first(where: { $0.sessionId.hasPrefix("demo-") }) { model.claude.answer(a, .allow) }
+        case "pick", "send": NotificationCenter.default.post(name: .demoQuestion, object: cmd)
+        default: break
+        }
+    }
+
     private var swipeX: CGFloat = 0
     private var swiped = false
 
@@ -229,11 +263,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // فتح وقفل بالـ hover
         let collapsed = notchRect(model.collapsedSize).insetBy(dx: -4, dy: -4)
         let expanded = notchRect(model.expandedSize)
-        if !model.expanded {
+        if model.demoHold || model.onboarding != nil {
+            // سكريبت الـ demo أو صفحات الترحيب: النوتش يفضل مفتوح لحد ما يخلصوا
+        } else if !model.expanded {
             // كارت الإذن ظاهر: منفتحش النوتش فوقه
             if collapsed.contains(mouse), model.claude.asks.isEmpty {
                 model.expanded = true
                 model.banner = nil
+                model.activity = nil
                 leftAt = nil
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             }
@@ -362,7 +399,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                    AskQuestion(text: "?", header: "", multi: false, options: [.init(label: "a", detail: "")])]
     m.claude.preview(m.claude.sessions, asks: [q])
     save("card-question")
+    m.claude.preview(m.claude.sessions)
+
+    // كل اللي على الجناب مرة واحدة: أوسع حالة
+    m.battery = 8
+    m.charging = false
+    save("collapsed-busy-wings")
+    m.banner = Banner(icon: "bolt.fill", text: tr("بيشحن — 64%", "Charging — 64%"), color: Theme.green, battery: 64)
+    save("banner-charging")
+    m.banner = Banner(icon: "battery.25", text: tr("البطارية قربت تخلص — 18%", "Battery low — 18%"), color: Theme.red,
+                      detail: tr("وصّل الشاحن 🔌", "Plug in the charger 🔌"), battery: 18)
+    save("banner-low")
+    m.banner = nil
+    m.timerEnd = nil
+    m.activity = Activity(icon: "sparkle", title: tr("أترجم الواجهة", "Translate the UI"), subtitle: "NotchRobot · 2/4",
+                          color: claudeOrange, progress: 0.5)
+    save("activity-task")
+    m.activity = nil
+
+    m.clipboard.preview(["https://github.com/abdomo77/NotchRobot", "#FF6B35", "{\"name\":\"robo\",\"v\":2}",
+                         "hello@example.com", "482913"], pins: ["git push origin main"])
+    m.expanded = true
+    m.tab = .clipboard
+    save("tab-clipboard-smart")
+
+    m.tab = .style
+    for b in Buddy.allCases {
+        m.buddy = b
+        for sk in Skin.allCases { m.skin = sk; save("style-\(b)-\(sk)") }
+    }
+    m.skin = .dark
+    m.accentChoice = .pink
+    m.buddy = .cat
+    save("style-accent-pink")
+    m.accentChoice = .cyan
+    m.buddy = .robot
+    for p in 0..<OnboardingView.pages { m.onboarding = p; save("onboarding-\(p)") }
 }
+
+/// لازم تتحسب قبل أي حاجة تقرا Lang.current (هي اللي بتكتب "lang" أول مرة)
+let firstRun = UserDefaults.standard.object(forKey: "lang") == nil
+    && UserDefaults.standard.object(forKey: "soundsOn") == nil
+    && !FileManager.default.fileExists(atPath: ClaudeStore.base.appendingPathComponent("sessions.json").path)
 
 if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
     MainActor.assumeIsolated { snapshot(to: CommandLine.arguments[i + 1]) }

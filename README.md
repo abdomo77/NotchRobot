@@ -13,7 +13,7 @@
 
 **A little robot that lives in your MacBook's notch — and keeps an eye on Claude Code for you.**
 
-[Download](https://github.com/abdomo77/NotchRobot/releases/latest) · [Build from source](#build-from-source) · [العربي](#بالعربي)
+[Download](https://github.com/abdomo77/NotchRobot/releases/latest) · [Build from source](#build-from-source) · [Changelog](CHANGELOG.md) · [العربي](#بالعربي)
 
 <img src="docs/1-demo-en.gif" width="800" alt="A Claude Code permission card opens in the notch, is approved, and the session continues">
 
@@ -34,14 +34,19 @@
 - **Account usage.** Your Claude plan's 5-hour and weekly usage, with when each one resets (Pro and Max plans). The notch warns you once when either limit reaches 90%, and tells you once when it's back.
 - **Task progress.** When Claude works through a task list, each session shows `2/4` and a progress bar, plus the task it's on now.
 - **Alerts.** A banner and a sound when Claude finishes, needs you, or hits an error, even over fullscreen apps.
+- **Live Activities.** When a new song starts or Claude moves on to its next task, the island stretches for a few seconds to show it. The timer and Claude's task list show a progress ring next to the notch.
 - **Now playing.** Shows the current song and artwork from Spotify, Apple Music, or YouTube, with the accent color taken from the artwork. Drag the progress bar to seek.
-- **Clipboard history.** Keeps your last 20 copies.
-- **Shelf.** Drag files onto the notch to keep them handy.
-- **Timer, battery, clock, and date.**
-- **The robot.** His eyes follow your mouse, and he blinks, sleeps, and reacts to what Claude is doing.
+- **Smart clipboard.** Keeps your last 20 copies and recognizes links, emails, colors, JSON, and file paths, with a one-click action for each (open, mail, `rgb()`, format, Finder). Pin up to 5 items you paste often.
+- **Shelf and screenshots.** Drag files onto the notch to keep them handy, or press **⌃⌥S** to grab part of the screen straight onto the shelf and your clipboard.
+- **Battery.** A filling battery when you plug in, warnings at 20% and 10%, and a red battery next to the notch when it's low.
+- **Timer, clock, and date.**
+- **Your buddy, your style.** Pick a Robot, Cat, Ghost, or Pixel character, a Dark, Glass, Neon, or Minimal notch, and one of six accent colors. Its eyes follow your mouse, and it blinks, sleeps, dances to music, and reacts to what Claude is doing.
 - **Swipe between tabs.** Swipe left or right with two fingers on the trackpad while the notch is open.
 - **English and Arabic.** It follows your Mac's language, and you can switch in Settings.
-- **Update check.** It tells you when a new version is out on GitHub.
+- **Welcome tour.** A short tour the first time you open it.
+- **Automatic updates.** It downloads new releases from GitHub, replaces itself, and reopens. You can turn this off in Settings.
+
+See the [changelog](CHANGELOG.md) for what's new in each version.
 
 <p align="center">
   <img src="docs/4-sessions-en.png" width="49%" alt="Claude sessions with account usage and task progress">
@@ -78,7 +83,9 @@
    ```
 5. Open NotchRobot, then restart any running `claude` sessions.
 
-To start NotchRobot with your Mac, turn on **يفتح مع تشغيل الماك** in the settings tab.
+To start NotchRobot with your Mac, turn on **Open at login** in the settings tab (or on the last page of the welcome tour).
+
+From then on, NotchRobot updates itself when a new release is out. To update by hand instead, turn off **Update automatically** in Settings and use the **Update to vX** button.
 
 ## Build from source
 
@@ -116,6 +123,15 @@ If you prefer to set it up by hand, add `~/.notchrobot/hook.sh` as a `command` h
 ## Permissions
 
 - **Automation**: used to find the right Terminal or iTerm2 tab, and to read the YouTube tab in your browser for song artwork. macOS asks the first time.
+- **Screen Recording**: used only for **⌃⌥S** screenshots. macOS asks the first time you take one.
+
+NotchRobot isn't notarized, so macOS may forget these permissions after an update. If screenshots or jumping to the terminal stop working, grant them again in **System Settings → Privacy & Security**.
+
+## Keyboard shortcuts
+
+| Shortcut | What it does |
+|---|---|
+| **⌃⌥S** | Screenshot part of the screen to the shelf and clipboard (press Space while selecting for a whole window) |
 
 ## Uninstall
 
@@ -123,13 +139,15 @@ If you prefer to set it up by hand, add `~/.notchrobot/hook.sh` as a `command` h
 pkill -x NotchRobot; rm -rf /Applications/NotchRobot.app ~/.notchrobot
 ```
 
+Screenshots you took are kept in `~/Pictures/NotchRobot`.
+
 Then remove the `.notchrobot/hook.sh` entries and the `statusLine` from `~/.claude/settings.json`, or restore `settings.json.bak-notchrobot`.
 
 ---
 
 ## بالعربي
 
-روبوت صغير بيعيش في النوتش بتاع الماك وبيتابعلك جلسات Claude Code. بيوريك كل جلسة شغالة وتوصلك منه تنبيهات لما كلود يخلص أو يحتاجك. وتقدر من النوتش توافق على طلبات الإذن أو ترفضها، وتجاوب على أسئلة كلود سواء كانت اختيار واحد أو أكتر من اختيار أو أكتر من سؤال. وبيعرض استهلاك حسابك في الـ 5 ساعات وفي الأسبوع، وتقدم المهام في كل جلسة. وكمان فيه الأغنية الشغالة، وتاريخ الكليب بورد، ورف للملفات، وتايمر. الواجهة بالعربي والإنجليزي، وبيقولك لما ينزل إصدار جديد.
+روبوت صغير بيعيش في النوتش بتاع الماك وبيتابعلك جلسات Claude Code. بيوريك كل جلسة شغالة وتوصلك منه تنبيهات لما كلود يخلص أو يحتاجك. وتقدر من النوتش توافق على طلبات الإذن أو ترفضها، وتجاوب على أسئلة كلود سواء كانت اختيار واحد أو أكتر من اختيار أو أكتر من سؤال. وبيعرض استهلاك حسابك في الـ 5 ساعات وفي الأسبوع، وتقدم المهام في كل جلسة. وكمان فيه الأغنية الشغالة، وكليب بورد ذكي بيعرف اللينكات والألوان والـ JSON وتقدر تثبّت فيه، ورف للملفات وسكرين شوت بـ **⌃⌥S**، وتايمر، وتنبيهات البطارية. تقدر تختار شخصيتك (روبوت، قطة، شبح، بكسل) وشكل النوتش (غامق، زجاج، نيون، هادي) واللون. الواجهة بالعربي والإنجليزي، وبيحدّث نفسه لوحده لما ينزل إصدار جديد. شوف كل الجديد في [الـ Changelog](CHANGELOG.md#بالعربي).
 
 **التسطيب:**
 1. نزّل `NotchRobot.zip` من [آخر إصدار](https://github.com/abdomo77/NotchRobot/releases/latest) وفكّه.
@@ -138,6 +156,8 @@ Then remove the `.notchrobot/hook.sh` entries and the `statusLine` from `~/.clau
    `xattr -dr com.apple.quarantine /Applications/NotchRobot.app`
 4. شغّل `./install-hooks.sh` من نفس الفولدر عشان تربطه بكلود كود.
 5. افتح التطبيق، وبعدين اقفل أي جلسة `claude` شغالة وافتحها تاني.
+
+السكرين شوت محتاج إذن **Screen Recording**، والماك هيطلبه أول مرة. ولأن التطبيق مش notarized، الماك ممكن ينسى الإذن بعد التحديث، فلو السكرين شوت وقف ادّيله الإذن تاني من **System Settings → Privacy & Security**.
 
 ## License
 
